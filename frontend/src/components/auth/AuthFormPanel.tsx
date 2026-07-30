@@ -10,9 +10,11 @@ type AuthFormPanelProps = ReturnType<typeof useAuthPageForm>;
 
 export function AuthFormPanel({
   confirmPassword,
+  continueWithGoogle,
   displayName,
   email,
   error,
+  isGoogleSubmitting,
   isForgot,
   isSignup,
   isSubmitting,
@@ -49,21 +51,46 @@ export function AuthFormPanel({
         </div>
 
         {!isForgot && (
-          <div className="mb-6 grid grid-cols-2 rounded-xl border border-violet-100 bg-violet-50/70 p-1 shadow-inner">
-            {(['login', 'signup'] as const).map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => switchMode(item)}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
-                  mode === item
-                    ? 'bg-white text-violet-700 shadow-sm shadow-violet-100'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {item === 'login' ? 'Sign in' : 'Sign up'}
-              </button>
-            ))}
+          <div className="mb-6 space-y-4">
+            <div className="grid grid-cols-2 rounded-xl border border-violet-100 bg-violet-50/70 p-1 shadow-inner">
+              {(['login', 'signup'] as const).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => switchMode(item)}
+                  className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                    mode === item
+                      ? 'bg-white text-violet-700 shadow-sm shadow-violet-100'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  {item === 'login' ? 'Sign in' : 'Sign up'}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              onClick={continueWithGoogle}
+              disabled={isSubmitting || isGoogleSubmitting}
+              className="h-11 w-full rounded-xl border-violet-100 bg-white/95 font-bold text-slate-700 shadow-sm shadow-violet-100/60 hover:bg-violet-50 hover:text-violet-700"
+            >
+              <span className="mr-2 grid h-5 w-5 place-items-center rounded-full border border-slate-200 bg-white text-sm font-black text-slate-900">
+                G
+              </span>
+              {isGoogleSubmitting
+                ? 'Opening Google…'
+                : isSignup
+                  ? 'Sign up with Google'
+                  : 'Sign in with Google'}
+            </Button>
+
+            <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
+              <span className="h-px flex-1 bg-violet-100" />
+              or
+              <span className="h-px flex-1 bg-violet-100" />
+            </div>
           </div>
         )}
 

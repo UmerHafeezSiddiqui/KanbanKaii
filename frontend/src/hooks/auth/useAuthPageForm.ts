@@ -14,6 +14,7 @@ export function useAuthPageForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -23,6 +24,30 @@ export function useAuthPageForm() {
     setNotice(null);
     setPassword('');
     setConfirmPassword('');
+  };
+
+  const continueWithGoogle = async () => {
+    setError(null);
+    setNotice(null);
+    setIsGoogleSubmitting(true);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}${successRedirect}`,
+        },
+      });
+      if (oauthError) throw oauthError;
+    } catch (authError) {
+      setIsGoogleSubmitting(false);
+      setError(
+        authError instanceof Error
+          ? authError.message
+          : 'Google authentication failed. Please try again.',
+      );
+    }
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -90,6 +115,7 @@ export function useAuthPageForm() {
     displayName,
     email,
     error,
+    isGoogleSubmitting,
     isForgot: mode === 'forgot',
     isSignup: mode === 'signup',
     isSubmitting,
@@ -101,6 +127,7 @@ export function useAuthPageForm() {
     setEmail,
     setPassword,
     submit,
+    continueWithGoogle,
     switchMode,
   };
 }
