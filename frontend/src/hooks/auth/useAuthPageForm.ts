@@ -1,8 +1,19 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { safeAuthRedirect } from '@/auth/redirect';
 import { getSupabaseClient } from '@/lib/supabase';
 
 export type AuthMode = 'login' | 'signup' | 'forgot';
+
+function readOAuthErrorFromUrl(): string | null {
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  return (
+    searchParams.get('error_description') ??
+    hashParams.get('error_description') ??
+    searchParams.get('error') ??
+    hashParams.get('error')
+  );
+}
 
 export function useAuthPageForm() {
   const successRedirect = safeAuthRedirect();
@@ -17,6 +28,24 @@ export function useAuthPageForm() {
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const resetGoogleLoading = () => setIsGoogleSubmitting(false);
+    const oauthError = readOAuthErrorFromUrl();
+
+    if (oauthError) {
+      setError(oauthError);
+      setIsGoogleSubmitting(false);
+    }
+
+    window.addEventListener('pageshow', resetGoogleLoading);
+    window.addEventListener('focus', resetGoogleLoading);
+
+    return () => {
+      window.removeEventListener('pageshow', resetGoogleLoading);
+      window.removeEventListener('focus', resetGoogleLoading);
+    };
+  }, []);
 
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
@@ -40,6 +69,7 @@ export function useAuthPageForm() {
         },
       });
       if (oauthError) throw oauthError;
+      window.setTimeout(() => setIsGoogleSubmitting(false), 5000);
     } catch (authError) {
       setIsGoogleSubmitting(false);
       setError(

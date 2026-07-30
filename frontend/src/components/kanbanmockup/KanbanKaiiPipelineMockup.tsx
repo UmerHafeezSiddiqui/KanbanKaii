@@ -57,9 +57,6 @@ export function KanbanKaiiPipelineMockup() {
             Watch a message become a ticket.
           </h3>
         </div>
-        <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700 shadow-sm">
-          Live automation
-        </span>
       </div>
 
       <div className="relative grid gap-4 lg:grid-cols-[0.72fr_1.28fr]">
