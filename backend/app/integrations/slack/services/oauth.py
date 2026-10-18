@@ -5,12 +5,13 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 import httpx
+from starlette.concurrency import run_in_threadpool
 
 from app.integrations.slack.config import SlackOAuthSettings
 from app.integrations.slack.security.encryption import TokenCipher
 from app.integrations.slack.data.repository import SlackRepository
 from app.integrations.slack.schemas import SlackOAuthAccessResponse, SlackUserInfoResponse
-from app.integrations.slack.services.oauth_state import SlackOAuthContext, SlackOAuthStateStore
+from app.integrations.slack.services.oauth_state import SlackOAuthStateStore
 
 
 SLACK_AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize"
@@ -57,9 +58,7 @@ class SlackOAuthService:
         owner_id: UUID,
         organization_id: UUID | None = None,
     ) -> str:
-        if organization_id and not self.repository.is_organization_owner(
-            owner_id, organization_id
-        ):
+        if organization_id and not await run_in_threadpool(self.repository.is_organization_owner, owner_id, organization_id):
             raise SlackWorkspaceVerificationError(
                 "Only the KanbanKaii organization owner can bind Slack"
             )
@@ -84,9 +83,6 @@ class SlackOAuthService:
     ) -> SlackOAuthCompletion:
         state_hash = hashlib.sha256(raw_state.encode("utf-8")).hexdigest()
         context = await self.state_store.consume(state_hash)
-        if isinstance(context, UUID):  # Backward-compatible with an in-flight old state.
-            context = SlackOAuthContext(owner_id=context)
-
         request_data = {
             "client_id": self.settings.client_id,
             "client_secret": self.settings.client_secret,
@@ -116,9 +112,7 @@ class SlackOAuthService:
             )
 
         if context.organization_id:
-            if not self.repository.is_organization_owner(
-                context.owner_id, context.organization_id
-            ):
+            if not await run_in_threadpool(self.repository.is_organization_owner, context.owner_id, context.organization_id):
                 raise SlackWorkspaceVerificationError(
                     "KanbanKaii organization ownership changed during Slack authorization",
                     context.organization_id,
@@ -139,7 +133,8 @@ class SlackOAuthService:
 
         ciphertext = self.token_cipher.encrypt(oauth_result.access_token)
         scopes = [scope for scope in oauth_result.scope.split(",") if scope]
-        self.repository.save_installation(
+        await run_in_threadpool(
+            self.repository.save_installation,
             owner_id=context.owner_id,
             team_id=oauth_result.team.id,
             team_name=oauth_result.team.name,
@@ -150,7 +145,8 @@ class SlackOAuthService:
         )
         if context.organization_id:
             assert slack_user.user is not None
-            self.repository.bind_organization_workspace(
+            await run_in_threadpool(
+                self.repository.bind_organization_workspace,
                 organization_id=context.organization_id,
                 owner_id=context.owner_id,
                 team_id=oauth_result.team.id,

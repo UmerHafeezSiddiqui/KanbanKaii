@@ -85,9 +85,11 @@ class OrganizationInviteStore:
                 pipeline.set(invite_key, json.dumps(payload), ex=ttl_seconds)
                 pipeline.set(token_key, str(invite_id), ex=ttl_seconds, nx=True)
                 pipeline.sadd(organization_index_key, str(invite_id))
-                pipeline.expire(organization_index_key, ttl_seconds)
+                pipeline.expire(organization_index_key, ttl_seconds, nx=True)
+                pipeline.expire(organization_index_key, ttl_seconds, gt=True)
                 pipeline.sadd(email_index_key, str(invite_id))
-                pipeline.expire(email_index_key, ttl_seconds)
+                pipeline.expire(email_index_key, ttl_seconds, nx=True)
+                pipeline.expire(email_index_key, ttl_seconds, gt=True)
                 results = await pipeline.execute()
             if results[1] is not True:
                 async with self.redis.pipeline(transaction=True) as cleanup:

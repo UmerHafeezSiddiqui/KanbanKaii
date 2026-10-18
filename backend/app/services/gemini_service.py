@@ -5,6 +5,7 @@ from pydantic import ValidationError
 from app.core.config import get_gemini_api_key, get_gemini_model
 from app.core.logging import get_application_logger
 from app.prompts.triage import SLACK_MULTI_TASK_PROMPT, TRIAGE_SYSTEM_PROMPT
+from app.schemas.task_response import TASK_BATCH_RESPONSE_SCHEMA
 from app.schemas.triage import AIAnalysisResult, AITaskBatchResult, IncomingMessage
 from app.services.ai_provider import (
     AIModelConfigurationError,
@@ -34,30 +35,6 @@ GEMINI_TRIAGE_RESPONSE_SCHEMA = {
         "cleanDescription",
         "estimatedPriority",
     ],
-}
-
-
-GEMINI_TASK_BATCH_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "isActionableTask": {"type": "boolean"},
-        "tasks": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "description": {"type": "string"},
-                    "priority": {
-                        "type": "string",
-                        "enum": ["HIGH", "MEDIUM", "LOW"],
-                    },
-                },
-                "required": ["title", "description", "priority"],
-            },
-        },
-    },
-    "required": ["isActionableTask", "tasks"],
 }
 
 
@@ -181,7 +158,7 @@ class GeminiService:
         if response_type is AIAnalysisResult:
             return GEMINI_TRIAGE_RESPONSE_SCHEMA
         if response_type is AITaskBatchResult:
-            return GEMINI_TASK_BATCH_RESPONSE_SCHEMA
+            return TASK_BATCH_RESPONSE_SCHEMA
         raise AIModelServiceError("Unsupported Gemini response schema")
 
     @staticmethod

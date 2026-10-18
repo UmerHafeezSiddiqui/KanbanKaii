@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from app.core.config import get_ollama_host, get_ollama_model
 from app.prompts.triage import SLACK_MULTI_TASK_PROMPT, TRIAGE_SYSTEM_PROMPT
+from app.schemas.task_response import TASK_BATCH_RESPONSE_SCHEMA
 from app.schemas.triage import AIAnalysisResult, AITaskBatchResult, IncomingMessage
 from app.services.ai_provider import (
     AIModelConfigurationError,
@@ -17,29 +18,6 @@ from app.core.logging import get_application_logger
 
 
 logger = get_application_logger("ollama")
-
-SLACK_TASK_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "isActionableTask": {"type": "boolean"},
-        "tasks": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "title": {"type": "string"},
-                    "description": {"type": "string"},
-                    "priority": {
-                        "type": "string",
-                        "enum": ["HIGH", "MEDIUM", "LOW"],
-                    },
-                },
-                "required": ["title", "description", "priority"],
-            },
-        },
-    },
-    "required": ["isActionableTask", "tasks"],
-}
 
 
 class OllamaConfigurationError(AIModelConfigurationError):
@@ -88,7 +66,7 @@ class OllamaService:
             SLACK_MULTI_TASK_PROMPT,
             AITaskBatchResult,
             num_predict=700,
-            response_schema=SLACK_TASK_RESPONSE_SCHEMA,
+            response_schema=TASK_BATCH_RESPONSE_SCHEMA,
         )
 
     async def _generate(

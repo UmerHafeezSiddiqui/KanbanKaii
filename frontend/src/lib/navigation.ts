@@ -1,7 +1,18 @@
 export const appNavigateEvent = 'kanbankaii:navigate';
 
-export function navigateTo(path: string) {
-  if (window.location.pathname === path) return;
-  window.history.pushState({}, '', path);
+export interface NavigateOptions {
+  replace?: boolean;
+}
+
+export function navigateTo(path: string, options: NavigateOptions = {}) {
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  if (currentPath === path) return;
+
+  if (options.replace) {
+    window.history.replaceState({}, '', path);
+  } else {
+    window.history.pushState({}, '', path);
+  }
+
   window.dispatchEvent(new CustomEvent(appNavigateEvent, { detail: { path } }));
 }

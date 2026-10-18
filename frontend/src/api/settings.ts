@@ -7,7 +7,7 @@ export interface NotificationSettings {
   weeklySummary: boolean;
 }
 
-export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
+const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   newTickets: true,
   statusChanges: true,
   weeklySummary: false,

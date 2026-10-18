@@ -2,6 +2,7 @@ import logging
 from uuid import UUID
 
 import httpx
+from starlette.concurrency import run_in_threadpool
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
@@ -49,7 +50,7 @@ class SlackChannelService:
             cached = await self._cached_channel_name(team_id, slack_channel_id)
             if cached:
                 return cached
-            installation = self.repository.get_installation(owner_id)
+            installation = await run_in_threadpool(self.repository.get_installation, owner_id)
             if installation is None:
                 logger.info(
                     "Slack channel name skipped because installation was not found",
@@ -75,19 +76,17 @@ class SlackChannelService:
                     extra={"slack_channel_id": slack_channel_id},
                 )
                 return None
-            for field in ("name_normalized", "name"):
-                value = channel.get(field)
-                if isinstance(value, str) and value.strip():
-                    resolved = value.strip().lstrip("#")
-                    await self._cache_channel_name(team_id, slack_channel_id, resolved)
-                    logger.info(
-                        "Slack channel name resolved",
-                        extra={
-                            "slack_channel_id": slack_channel_id,
-                            "slack_channel_name": resolved,
-                        },
-                    )
-                    return resolved
+            resolved = self._extract_channel_name(payload)
+            if resolved is not None:
+                await self._cache_channel_name(team_id, slack_channel_id, resolved)
+                logger.info(
+                    "Slack channel name resolved",
+                    extra={
+                        "slack_channel_id": slack_channel_id,
+                        "slack_channel_name": resolved,
+                    },
+                )
+                return resolved
             logger.warning(
                 "Slack channel lookup did not include a readable name",
                 extra={"slack_channel_id": slack_channel_id},
@@ -104,7 +103,7 @@ class SlackChannelService:
         self,
         organization_id: UUID,
     ) -> SlackChannelRefreshResponse:
-        binding = self.repository.get_organization_workspace_binding(organization_id)
+        binding = await run_in_threadpool(self.repository.get_organization_workspace_binding, organization_id)
         if binding is None:
             return SlackChannelRefreshResponse(
                 channels_checked=0,
@@ -112,7 +111,7 @@ class SlackChannelService:
                 message="Slack workspace is not connected to this organization.",
             )
 
-        installation = self.repository.get_installation(binding.verified_by_user_id)
+        installation = await run_in_threadpool(self.repository.get_installation, binding.verified_by_user_id)
         if installation is None:
             return SlackChannelRefreshResponse(
                 channels_checked=0,
@@ -121,7 +120,7 @@ class SlackChannelService:
                 message="The Slack verifier no longer has a connected Slack installation. Reconnect Slack once.",
             )
 
-        channels = self.repository.list_organization_mapped_channels(organization_id)
+        channels = await run_in_threadpool(self.repository.list_organization_mapped_channels, organization_id)
         if not channels:
             return SlackChannelRefreshResponse(
                 channels_checked=0,
@@ -177,7 +176,8 @@ class SlackChannelService:
                 continue
             await self._cache_channel_name(channel.slack_team_id, channel.slack_channel_id, name)
             if name != channel.slack_channel_name:
-                self.repository.update_board_channel_display_name(
+                await run_in_threadpool(
+                    self.repository.update_board_channel_display_name,
                     organization_id,
                     channel.board_id,
                     channel.slack_team_id,

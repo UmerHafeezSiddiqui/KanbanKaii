@@ -14,12 +14,19 @@ __pycache__/
 # Node
 frontend/node_modules/
 frontend/dist/
+frontend/.test-build/
 *.tsbuildinfo
 
 # Logs and runtime data
 *.log
 logs/
 .runtime/
+
+# Local documentation and browser verification artifacts
+/docs/
+/.playwright-cli/
+/playwright/
+/output/playwright/
 
 # Editors and OS
 .vscode/

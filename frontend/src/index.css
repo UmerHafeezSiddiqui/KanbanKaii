@@ -10,7 +10,7 @@
     --card-foreground: 220 20% 10%;
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 10%;
-    --primary: 252 79% 63%;
+    --primary: 263 70% 43%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 20% 96%;
     --secondary-foreground: 220 20% 10%;
@@ -22,13 +22,13 @@
     --destructive-foreground: 0 0% 100%;
     --border: 220 13% 90%;
     --input: 220 13% 90%;
-    --ring: 220 70% 45%;
+    --ring: 263 70% 50%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --radius: 0.5rem;
+    --radius: .75rem;
   }
   .dark {
     --background: 220 20% 6%;
@@ -57,6 +57,39 @@
     --chart-5: 340 75% 55%;
   }
 }
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: Inter, system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+}
+
+@layer base {
+  ::selection { background: #ddd6fe; color: #2e1065; }
+  :focus-visible { outline: 2px solid #6d28d9; outline-offset: 4px; }
+  input, textarea { caret-color: #6d28d9; }
+  a { text-underline-offset: .2em; }
+  h1, h2, h3, h4 { text-wrap: balance; }
+  .app-shell { font-variant-numeric: tabular-nums; }
+  .app-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+  .app-shell ::-webkit-scrollbar-track { background: transparent; }
+  .app-shell ::-webkit-scrollbar-thumb { background: #b8b9c6; border: 2px solid #f1f5f9; border-radius: 8px; }
+  .kanbankaii-app-grid { background: #f8fafc; }
+}
+
+.status-dot { display: inline-block; flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+.status-in-progress { background: #7c3aed; }
+.status-completed { background: #059669; }
+.column-empty { display: flex; min-height: 200px; flex-direction: column; justify-content: center; gap: 6px; padding: 20px; text-align: center; }
+.column-empty p { color: #475569; font-size: 13px; font-weight: 600; }
+.column-empty span { color: #64748b; font-size: 12px; line-height: 1.6; }
 
 @keyframes landing-message-in {
   0%, 12% { opacity: 0; transform: translateY(14px); }
@@ -144,16 +177,6 @@
   mask-image: linear-gradient(to bottom, black 82%, transparent);
 }
 
-.kanbankaii-app-grid {
-  background:
-    radial-gradient(circle at 12% 16%, rgba(139, 92, 246, .22), transparent 34%),
-    radial-gradient(circle at 88% 20%, rgba(99, 102, 241, .16), transparent 30%),
-    radial-gradient(circle at 52% 86%, rgba(167, 139, 250, .18), transparent 38%),
-    linear-gradient(to right, rgba(109, 83, 170, .075) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(109, 83, 170, .075) 1px, transparent 1px),
-    #f8f7ff;
-  background-size: auto, auto, auto, 56px 56px, 56px 56px, auto;
-}
 
 .landing-message { animation: landing-message-in 7s ease-out infinite; }
 .landing-thinking { animation: landing-thinking-in 7s ease-out infinite; }
@@ -203,15 +226,15 @@
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    font-family: Inter, system-ui, -apple-system, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    overflow: hidden;
-  }
+
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('/fonts/dm-sans-latin.woff2') format('woff2');
 }
+.landing-original { font-family: 'DM Sans', system-ui, sans-serif; }
+.landing-original h1, .landing-original h2, .landing-original h3, .landing-original h4 { text-wrap: balance; }
+.landing-original h1 { font-weight: 600; }
+.landing-original p { font-weight: 400; }

@@ -10,11 +10,11 @@ interface AppLayoutProps {
 
 export function AppLayout({ pageTitle, children }: AppLayoutProps) {
   return (
-    <div className="flex h-dvh min-h-[560px] overflow-hidden bg-white">
+    <div className="app-shell flex h-dvh overflow-hidden bg-slate-50">
       <AppSidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopNav pageTitle={pageTitle} />
-        <main className="min-h-0 flex-1 overflow-auto bg-white pb-16 sm:pb-0">
+        <main className="min-h-0 flex-1 overflow-auto bg-slate-50 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">
           {children}
         </main>
       </div>

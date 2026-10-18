@@ -1,4 +1,5 @@
 import httpx
+from starlette.concurrency import run_in_threadpool
 from uuid import UUID
 
 from app.integrations.slack.security.encryption import TokenCipher, TokenEncryptionError
@@ -26,7 +27,7 @@ class SlackConnectionService:
         self.http_client = http_client
 
     async def status(self, owner_id: UUID) -> str | None:
-        installation = self.repository.get_installation(owner_id)
+        installation = await run_in_threadpool(self.repository.get_installation, owner_id)
         if installation is None:
             return None
         try:
@@ -37,12 +38,12 @@ class SlackConnectionService:
         if result.get("ok") is True:
             return installation.workspace_name
         if result.get("error") in REVOKED_TOKEN_ERRORS:
-            self.repository.delete_owner_installation(owner_id)
+            await run_in_threadpool(self.repository.delete_owner_installation, owner_id)
             return None
         raise SlackConnectionError("Slack could not verify the installation")
 
     async def disconnect(self, owner_id: UUID) -> None:
-        installation = self.repository.get_installation(owner_id)
+        installation = await run_in_threadpool(self.repository.get_installation, owner_id)
         if installation is None:
             return
         try:
@@ -52,7 +53,7 @@ class SlackConnectionService:
         result = await self._post(SLACK_AUTH_REVOKE_URL, token)
         if result.get("ok") is not True and result.get("error") not in REVOKED_TOKEN_ERRORS:
             raise SlackConnectionError("Slack could not revoke the installation")
-        self.repository.delete_owner_installation(owner_id)
+        await run_in_threadpool(self.repository.delete_owner_installation, owner_id)
 
     async def _post(self, url: str, token: str) -> dict:
         try:

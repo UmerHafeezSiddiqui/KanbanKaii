@@ -4,8 +4,8 @@ from unittest import TestCase
 from unittest.mock import AsyncMock
 
 from app.schemas.triage import AIAnalysisResult, AITaskBatchResult, IncomingMessage
+from app.schemas.task_response import TASK_BATCH_RESPONSE_SCHEMA
 from app.services.ollama_service import (
-    SLACK_TASK_RESPONSE_SCHEMA,
     OllamaService,
     OllamaServiceError,
 )
@@ -98,5 +98,5 @@ class OllamaServiceTests(TestCase):
 
         self.assertEqual(len(result.tasks), 2)
         request = chat.await_args.kwargs
-        self.assertEqual(request["format"], SLACK_TASK_RESPONSE_SCHEMA)
+        self.assertEqual(request["format"], TASK_BATCH_RESPONSE_SCHEMA)
         self.assertEqual(request["options"]["num_predict"], 700)

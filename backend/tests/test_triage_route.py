@@ -5,6 +5,10 @@ from uuid import uuid4
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.auth.dependencies import get_current_user_id
+from app.integrations.slack.routes.webhooks import get_slack_ai_rate_limiter
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from app.database.ticket_repository import TicketRepositoryError
 from app.routes.triage import get_configured_ollama_service, get_ticket_repository
 from app.schemas.ticket import TicketCreate, TicketResponse
@@ -47,11 +51,16 @@ class FailingTicketRepository:
 
 
 class TriageRouteTests(TestCase):
+    def setUp(self):
+        self.owner_id = uuid4()
+        app.dependency_overrides[get_current_user_id] = lambda: self.owner_id
+        app.dependency_overrides[get_slack_ai_rate_limiter] = lambda: SimpleNamespace(acquire=AsyncMock(return_value=True))
+
     def tearDown(self) -> None:
         app.dependency_overrides.clear()
 
     def test_actionable_message_creates_and_returns_stored_ticket(self) -> None:
-        owner_id = uuid4()
+        owner_id = self.owner_id
         expected = AIAnalysisResult(
             isActionableTask=True,
             extractedTitle="Fix checkout",
@@ -101,7 +110,7 @@ class TriageRouteTests(TestCase):
             json={
                 "text": "Thanks, have a great weekend!",
                 "user_name": "Noah",
-                "owner_id": str(uuid4()),
+                "owner_id": str(self.owner_id),
                 "source": "GITHUB",
             },
         )
@@ -128,7 +137,7 @@ class TriageRouteTests(TestCase):
             json={
                 "text": "Please fix checkout",
                 "user_name": "Aisha",
-                "owner_id": str(uuid4()),
+                "owner_id": str(self.owner_id),
                 "source": "SLACK",
             },
         )
@@ -156,7 +165,7 @@ class TriageRouteTests(TestCase):
             json={
                 "text": "Please fix checkout",
                 "user_name": "Aisha",
-                "owner_id": str(uuid4()),
+                "owner_id": str(self.owner_id),
                 "source": "SLACK",
             },
         )

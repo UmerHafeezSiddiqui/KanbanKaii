@@ -2,6 +2,7 @@ import logging
 from uuid import UUID
 
 import httpx
+from starlette.concurrency import run_in_threadpool
 
 from app.integrations.slack.security.encryption import TokenCipher, TokenEncryptionError
 from app.integrations.slack.data.repository import SlackRepository, SlackRepositoryError
@@ -26,7 +27,7 @@ class SlackUserService:
 
     async def display_name(self, owner_id: UUID, slack_user_id: str) -> str:
         try:
-            installation = self.repository.get_installation(owner_id)
+            installation = await run_in_threadpool(self.repository.get_installation, owner_id)
             if installation is None:
                 return slack_user_id
             token = self.token_cipher.decrypt(installation.token_ciphertext)

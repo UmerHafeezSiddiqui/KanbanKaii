@@ -2,7 +2,7 @@ from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from app.integrations.slack.processing.processor import SlackEventProcessor
-from app.integrations.slack.data.repository import SlackRepository, SlackRepositoryError
+from app.integrations.slack.data.repository import SlackRepository
 from app.integrations.slack.schemas import SlackEventEnvelope
 from app.core.logging import get_application_logger
 

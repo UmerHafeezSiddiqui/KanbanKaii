@@ -48,7 +48,7 @@ def invite_store_http_error(error: OrganizationInviteStoreError) -> None:
 @router.post("/invites/{token}/accept", response_model=OrganizationInviteAccepted)
 async def accept_organization_invite(
     token: Annotated[str, Path(min_length=32, max_length=200)],
-    _: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    user: Annotated[AuthenticatedUser, Depends(get_current_user)],
     repository: Annotated[OrganizationRepository, Depends(get_organization_repository)],
     invite_store: Annotated[OrganizationInviteStore, Depends(get_organization_invite_store)],
 ) -> OrganizationInviteAccepted:
@@ -62,7 +62,7 @@ async def accept_organization_invite(
         organization_id = await RedisOrganizationInviteService(
             repository,
             invite_store,
-        ).accept_invite(invite)
+        ).accept_invite(invite, user)
         await invite_store.discard(invite, token_hash)
         return OrganizationInviteAccepted(organization_id=organization_id)
     except OrganizationInviteStoreError as error:
@@ -102,7 +102,7 @@ async def accept_in_app_organization_invitation(
         organization_id = await RedisOrganizationInviteService(
             repository,
             invite_store,
-        ).accept_invite(invite)
+        ).accept_invite(invite, user)
         await invite_store.discard(invite)
         return OrganizationInviteAccepted(organization_id=organization_id)
     except OrganizationInviteStoreError as error:

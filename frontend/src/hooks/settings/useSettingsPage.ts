@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
   notificationSettingsFromUser,
@@ -13,15 +13,19 @@ export function useSettingsPage() {
     notificationSettingsFromUser(user),
   );
   const [isSaving, setIsSaving] = useState(false);
+  const isDirtyRef = useRef(false);
 
   useEffect(() => {
-    setSettings(notificationSettingsFromUser(user));
+    if (!isDirtyRef.current) {
+      setSettings(notificationSettingsFromUser(user));
+    }
   }, [user]);
 
   const changeSetting = (
     key: keyof NotificationSettings,
     checked: boolean,
   ) => {
+    isDirtyRef.current = true;
     setSettings((current) => ({ ...current, [key]: checked }));
   };
 
@@ -30,6 +34,7 @@ export function useSettingsPage() {
     setIsSaving(true);
     try {
       await updateNotificationSettings(user, settings);
+      isDirtyRef.current = false;
       toast.success('Settings saved');
     } catch (error) {
       toast.error(

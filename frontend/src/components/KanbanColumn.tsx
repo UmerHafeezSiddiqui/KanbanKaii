@@ -78,22 +78,22 @@ export function KanbanColumn({
       onScroll={handleScroll}
       onWheel={handleWheel}
       className={cn(
-        "flex h-[calc(100dvh-12rem)] min-h-[380px] w-[84vw] max-w-[360px] shrink-0 snap-start flex-col overflow-y-auto rounded-xl border border-slate-200 bg-white px-3 py-3 shadow-sm sm:h-[calc(100vh-7.5rem)] sm:max-w-none sm:w-full sm:min-w-0 sm:rounded-none sm:border-0 sm:px-4 sm:shadow-none",
-        isOver && "bg-violet-50/70",
+        "kanban-column flex h-[calc(100dvh-12rem)] min-h-[300px] w-[84vw] max-w-[360px] shrink-0 snap-start flex-col overflow-y-auto rounded-2xl bg-slate-100/80 p-3 sm:h-[calc(100dvh-10rem)] sm:w-full sm:min-w-0 sm:max-w-none sm:p-4",
+        isOver && "ring-2 ring-inset ring-violet-500 bg-violet-50",
       )}
     >
-      <div className="mb-3 flex h-7 items-center justify-between">
+      <div className="mb-4 flex min-h-9 items-center justify-between">
         <div className="flex items-center gap-2">
-          <h3 className="text-xs font-semibold text-slate-700">{title}</h3>
-          <span className="text-[11px] text-slate-400">{tickets.length}</span>
+          <span className={`status-dot status-${id.replace(" ", "-").toLowerCase()}`} aria-hidden="true" /><h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+          <span className="rounded-md bg-white px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-600">{tickets.length}</span>
         </div>
         {canAdd && (
           <button
             aria-label={`Add ticket to ${title}`}
             onClick={() => onAdd(title)}
-            className="rounded p-1 text-slate-400 hover:bg-white hover:text-violet-600"
+            className="grid h-9 w-9 place-items-center rounded-lg text-slate-600 hover:bg-white hover:text-violet-700"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
           </button>
         )}
       </div>
@@ -123,11 +123,17 @@ export function KanbanColumn({
             ))}
           </SortableContext>
         )}
+        {!isLoading && tickets.length === 0 && (
+          <div className="column-empty">
+            <p>{title === 'Pending' ? 'Ready for your next task' : title === 'In Progress' ? 'Make room for focused work' : 'A place for finished work'}</p>
+            <span>{canAdd ? 'Add a ticket or move one here.' : 'Tickets will appear here as work progresses.'}</span>
+          </div>
+        )}
         {hasMoreTickets && (
           <button
             type="button"
             onClick={showNextBatch}
-            className="mt-3 w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-[11px] font-medium text-slate-500 hover:border-violet-300 hover:bg-white hover:text-violet-600"
+            className="mt-3 w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 hover:border-violet-300 hover:bg-white hover:text-violet-600"
           >
             Load 3 more
           </button>

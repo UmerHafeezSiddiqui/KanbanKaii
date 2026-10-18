@@ -1,9 +1,13 @@
 from typing import Annotated
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from starlette.concurrency import run_in_threadpool
+from app.auth.dependencies import get_current_user_id
+from app.routes.tickets import get_ticket_repository
+from app.integrations.slack.routes.webhooks import get_slack_ai_rate_limiter
+from app.redis.rate_limiter import AIRateLimiterError, PerUserAIRateLimiter
 
-from app.database.supabase_client import SupabaseConfigurationError
 from app.database.ticket_repository import (
     TicketRepository,
     TicketRepositoryError,
@@ -33,20 +37,11 @@ def get_configured_ollama_service() -> AIModelService:
         ) from error
 
 
-def get_ticket_repository() -> TicketRepository:
-    try:
-        return TicketRepository()
-    except SupabaseConfigurationError as error:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(error),
-        ) from error
-
-
 @router.post("/triage", response_model=TriageResponse)
 async def triage_message(
     message: TriageRequest,
     response: Response,
+    owner_id: Annotated[UUID, Depends(get_current_user_id)],
     ollama_service: Annotated[
         AIModelService,
         Depends(get_configured_ollama_service),
@@ -55,14 +50,19 @@ async def triage_message(
         TicketRepository,
         Depends(get_ticket_repository),
     ],
+    rate_limiter: Annotated[PerUserAIRateLimiter, Depends(get_slack_ai_rate_limiter)],
 ) -> TriageResponse:
+    if message.owner_id != owner_id:
+        raise HTTPException(status_code=403, detail="Ticket owner must match the signed-in user")
     try:
+        if not await rate_limiter.acquire(f"triage:{uuid4()}", [owner_id]):
+            raise HTTPException(status_code=429, detail="AI request limit reached")
         analysis = await ollama_service.analyze(message)
         if not analysis.isActionableTask:
             return TriageResponse(status="ignored", analysis=analysis)
 
         ticket_data = create_ticket_from_analysis(
-            owner_id=message.owner_id,
+            owner_id=owner_id,
             message=message,
             analysis=analysis,
             source=message.source,
@@ -74,6 +74,8 @@ async def triage_message(
             analysis=analysis,
             ticket=ticket,
         )
+    except AIRateLimiterError as error:
+        raise HTTPException(status_code=503, detail="AI rate limiter is unavailable") from error
     except AIModelUnavailableError as error:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

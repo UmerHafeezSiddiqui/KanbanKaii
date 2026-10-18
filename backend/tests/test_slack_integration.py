@@ -46,16 +46,11 @@ class FakeSlackRepository:
     def __init__(self) -> None:
         self.saved_installation = None
         self.owner_id = uuid4()
-        self.workspace_name = None
         self.organization_owner = True
         self.bound_workspace = None
 
     def save_installation(self, **values) -> None:
         self.saved_installation = values
-
-    def get_connection_status(self, owner_id: UUID) -> str | None:
-        self.status_owner_id = owner_id
-        return self.workspace_name
 
     def is_organization_owner(self, owner_id, organization_id):
         return self.organization_owner

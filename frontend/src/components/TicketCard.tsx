@@ -35,6 +35,7 @@ export function TicketCard({ ticket, onEdit, boardName, overlay = false, draggab
     attributes,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -43,7 +44,6 @@ export function TicketCard({ ticket, onEdit, boardName, overlay = false, draggab
   const style: CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    touchAction: draggable ? 'none' : 'auto',
     userSelect: 'none',
     WebkitUserSelect: 'none',
     WebkitTouchCallout: 'none',
@@ -59,36 +59,49 @@ export function TicketCard({ ticket, onEdit, boardName, overlay = false, draggab
     <div
       ref={setNodeRef}
       style={style}
-      {...(draggable ? attributes : {})}
-      {...(draggable ? listeners : {})}
-      onClick={() => onEdit(ticket)}
+      onClick={() => {
+        if (!isDragging) onEdit(ticket);
+      }}
       onContextMenu={(event) => {
         if (draggable) event.preventDefault();
       }}
       className={cn(
-        'group relative cursor-pointer select-none rounded border border-slate-200 bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md',
+        'ticket-card group relative cursor-pointer select-none rounded-xl bg-white p-4 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow duration-200 hover:shadow-[0_4px_14px_rgba(15,23,42,0.10)]',
         draggable && 'cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-50 rotate-2 shadow-xl ring-2 ring-primary/20'
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <h4 className="pr-5 text-xs font-semibold leading-snug text-slate-800">
-          {ticket.title}
+        <h4 className="pr-5 text-sm font-semibold leading-snug text-slate-800">
+          <button
+            type="button"
+            className="text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600 focus-visible:ring-offset-2"
+            aria-label={`Open ticket: ${ticket.title}`}
+            disabled={overlay}
+          >
+            {ticket.title}
+          </button>
         </h4>
         {draggable && (
-          <span
-            aria-hidden="true"
-            className="absolute right-2.5 top-2.5 grid grid-cols-2 gap-0.5 opacity-60 transition-opacity group-hover:opacity-100"
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            aria-label={`Move ticket: ${ticket.title}`}
+            disabled={overlay}
+            onClick={(event) => event.stopPropagation()}
+            className="absolute right-1 top-1 grid h-8 w-8 touch-none place-content-center grid-cols-[repeat(2,4px)] gap-0.5 rounded opacity-60 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-600"
           >
             {Array.from({ length: 6 }).map((_, index) => (
               <span key={index} className="h-1 w-1 rounded-full bg-slate-400" />
             ))}
-          </span>
+          </button>
         )}
       </div>
 
       {ticket.description && (
-        <p className="mt-2 line-clamp-2 text-[11px] leading-relaxed text-slate-400">
+        <p className="mt-2 line-clamp-2 text-[13px] leading-relaxed text-slate-600">
           {ticket.description}
         </p>
       )}
@@ -96,7 +109,7 @@ export function TicketCard({ ticket, onEdit, boardName, overlay = false, draggab
       <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span
           className={cn(
-            'inline-flex items-center rounded-sm border px-1.5 py-0.5 text-[9px] font-semibold',
+            'inline-flex items-center rounded-md px-2 py-1 text-[11px] font-semibold',
             priority.bg,
             priority.dark
           )}
@@ -104,26 +117,26 @@ export function TicketCard({ ticket, onEdit, boardName, overlay = false, draggab
           {ticket.priority}
         </span>
 
-        <span className="inline-flex items-center gap-1 rounded-sm border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+        <span className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600">
           <SourceIcon className="h-3 w-3" /> {ticket.source}
         </span>
 
         {boardName && (
-          <span className="inline-flex items-center rounded-sm border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
+          <span className="inline-flex items-center rounded-md bg-violet-50 px-2 py-1 text-[11px] font-semibold text-violet-700">
             {boardName}
           </span>
         )}
       </div>
-      <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5 text-[10px] text-slate-400">
+      <div className="mt-3 space-y-1.5 border-t border-slate-100 pt-2.5 text-xs text-slate-600">
         <div className="flex items-center gap-1.5">
           <UserRound className="h-3.5 w-3.5 shrink-0" />
           <span className="shrink-0">{isAssignedTicket ? 'Assigned to' : 'Assignee'}</span>
-          <span className="truncate font-medium text-slate-500">{ticket.assignee}</span>
+          <span className="truncate font-medium text-slate-600">{ticket.assignee}</span>
         </div>
         {requesterName && (
           <div className="flex items-center gap-1.5 pl-5">
             <span className="shrink-0">{isAssignedTicket ? 'Assigned by' : 'Requested by'}</span>
-            <span className="truncate font-medium text-slate-500">{requesterName}</span>
+            <span className="truncate font-medium text-slate-600">{requesterName}</span>
           </div>
         )}
       </div>

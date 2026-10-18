@@ -164,16 +164,16 @@ export function TopNav({ pageTitle }: TopNavProps) {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-violet-100 bg-gradient-to-r from-white via-violet-50/75 to-white px-3 shadow-sm shadow-violet-100/40 sm:h-16 sm:px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 sm:h-16 sm:px-6">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-semibold text-violet-600 sm:text-sm">{pageTitle}</p>
-        <p className="hidden text-[11px] text-slate-400 sm:block">AI Ticket Manager</p>
+        <p className="truncate text-base font-semibold tracking-tight text-slate-950 sm:text-lg">{pageTitle}</p>
+
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
         <BackendStatus />
         <details ref={notificationsMenuRef} className="group relative" onToggle={handleNotificationToggle}>
-          <summary className="relative flex h-9 w-9 cursor-pointer list-none items-center justify-center rounded-full text-slate-400 hover:bg-white/80 hover:text-violet-600 [&::-webkit-details-marker]:hidden">
+          <summary className="relative flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl text-slate-600 hover:bg-white/80 hover:text-violet-600 [&::-webkit-details-marker]:hidden">
             <Bell className="h-[17px] w-[17px]" />
             {unreadNotifications.length > 0 && (
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-white" />
@@ -184,7 +184,7 @@ export function TopNav({ pageTitle }: TopNavProps) {
             <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
               <div>
                 <p className="text-sm font-semibold text-slate-800">Notifications</p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-xs text-slate-500">
                   {unreadNotifications.length > 0
                     ? `${unreadNotifications.length} unread ticket${unreadNotifications.length === 1 ? '' : 's'}`
                     : 'You are all caught up'}
@@ -194,14 +194,14 @@ export function TopNav({ pageTitle }: TopNavProps) {
                 type="button"
                 disabled={notificationsLoading || unreadNotifications.length === 0}
                 onClick={markNotificationsAsRead}
-                className="shrink-0 text-[10px] font-semibold text-violet-600 hover:text-violet-800 disabled:cursor-default disabled:text-slate-300"
+                className="shrink-0 text-xs font-semibold text-violet-600 hover:text-violet-800 disabled:cursor-default disabled:text-slate-300"
               >
                 Mark all as read
               </button>
             </div>
             <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
               {notificationsLoading && (
-                <p className="px-4 py-5 text-center text-xs text-slate-400">Loading tickets…</p>
+                <p className="px-4 py-5 text-center text-xs text-slate-500">Loading tickets…</p>
               )}
               {!notificationsLoading && notificationsError && (
                 <div className="px-4 py-4">
@@ -210,7 +210,7 @@ export function TopNav({ pageTitle }: TopNavProps) {
                 </div>
               )}
               {!notificationsLoading && !notificationsError && notifications.length === 0 && (
-                <p className="px-4 py-5 text-center text-xs text-slate-400">No tickets have been created yet.</p>
+                <p className="px-4 py-5 text-center text-xs text-slate-500">No tickets have been created yet.</p>
               )}
               {!notificationsLoading && !notificationsError && notifications.map((ticket) => {
                 const isUnread = !ticket.createdAt || new Date(ticket.createdAt).getTime() > notificationsReadAt;
@@ -221,9 +221,9 @@ export function TopNav({ pageTitle }: TopNavProps) {
                       {isUnread && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />}
                       <p className="line-clamp-2 text-xs font-medium leading-4 text-slate-700">{ticket.title}</p>
                     </div>
-                    <span className="shrink-0 rounded bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-violet-600">{ticket.source}</span>
+                    <span className="shrink-0 rounded bg-violet-50 px-1.5 py-0.5 text-xs font-semibold text-violet-600">{ticket.source}</span>
                   </div>
-                  <p className="mt-1.5 text-[10px] text-slate-400">Created {notificationTime(ticket.createdAt)}</p>
+                  <p className="mt-1.5 text-xs text-slate-500">Created {notificationTime(ticket.createdAt)}</p>
                 </a>
                 );
               })}
@@ -232,7 +232,7 @@ export function TopNav({ pageTitle }: TopNavProps) {
         </details>
 
         <details ref={profileMenuRef} className="group relative" onToggle={handleProfileToggle}>
-          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-full p-0.5 hover:bg-white/80 sm:pr-2 [&::-webkit-details-marker]:hidden">
+          <summary aria-label="Account menu" className="flex cursor-pointer list-none items-center gap-2 min-h-11 rounded-xl p-1 hover:bg-slate-100 sm:pr-2 [&::-webkit-details-marker]:hidden">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800 text-white">
               <UserRound className="h-4 w-4" />
             </span>
@@ -241,7 +241,7 @@ export function TopNav({ pageTitle }: TopNavProps) {
           <div className="absolute right-0 z-40 mt-2 w-[min(12rem,calc(100vw-1.5rem))] rounded-lg border border-slate-200 bg-white p-1.5 shadow-xl">
             <div className="border-b border-slate-100 px-3 py-2.5">
               <p className="truncate text-xs font-semibold text-slate-800">{displayName}</p>
-              <p className="mt-0.5 truncate text-[10px] text-slate-400">{user?.email}</p>
+              <p className="mt-0.5 truncate text-xs text-slate-500">{user?.email}</p>
             </div>
             <a href="/profile" onClick={(event) => openRoute(event, '/profile')} className="mt-1 block rounded-md px-3 py-2 text-xs font-medium text-slate-600 hover:bg-violet-50 hover:text-violet-700">
               Profile

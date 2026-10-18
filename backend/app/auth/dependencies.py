@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,14 +34,11 @@ def get_auth_client() -> Client:
         ) from error
 
 
-async def get_current_user_id(
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None,
-        Depends(bearer_scheme),
-    ],
-    supabase: Annotated[Client, Depends(get_auth_client)],
-) -> UUID:
-    """Verify a Supabase access token and return its user UUID claim."""
+async def _verify_identity(
+    credentials: HTTPAuthorizationCredentials | None,
+    supabase: Client,
+) -> tuple[UUID, dict[str, Any]]:
+    """Verify shared token requirements without requiring an email claim."""
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -58,15 +55,29 @@ async def get_current_user_id(
             raise ValueError("Missing JWT claims")
 
         claims = response["claims"]
+        if not isinstance(claims, dict):
+            raise ValueError("Invalid JWT claims")
         if claims.get("role") != "authenticated":
             raise ValueError("JWT is not an authenticated user token")
-        return UUID(str(claims["sub"]))
+        return UUID(str(claims["sub"])), claims
     except (AuthError, KeyError, TypeError, ValueError) as error:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token",
             headers={"WWW-Authenticate": "Bearer"},
         ) from error
+
+
+async def get_current_user_id(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None,
+        Depends(bearer_scheme),
+    ],
+    supabase: Annotated[Client, Depends(get_auth_client)],
+) -> UUID:
+    """Verify a Supabase access token and return its user UUID claim."""
+    user_id, _ = await _verify_identity(credentials, supabase)
+    return user_id
 
 
 async def get_current_user(
@@ -77,26 +88,10 @@ async def get_current_user(
     supabase: Annotated[Client, Depends(get_auth_client)],
 ) -> AuthenticatedUser:
     """Verify a Supabase access token and return the user id plus email."""
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+    user_id, claims = await _verify_identity(credentials, supabase)
     try:
-        response = await run_in_threadpool(
-            supabase.auth.get_claims,
-            credentials.credentials,
-        )
-        if response is None:
-            raise ValueError("Missing JWT claims")
-
-        claims = response["claims"]
-        if claims.get("role") != "authenticated":
-            raise ValueError("JWT is not an authenticated user token")
         return AuthenticatedUser(
-            id=UUID(str(claims["sub"])),
+            id=user_id,
             email=claims["email"],
         )
     except (AuthError, KeyError, TypeError, ValueError) as error:

@@ -17,10 +17,13 @@ export function useProfilePage() {
   const [jobTitle, setJobTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const initialDisplayName = (user?.user_metadata?.display_name as string | undefined) ?? '';
+  const initialJobTitle = (user?.user_metadata?.job_title as string | undefined) ?? '';
+
   useEffect(() => {
-    setName((user?.user_metadata.display_name as string | undefined) ?? '');
-    setJobTitle((user?.user_metadata.job_title as string | undefined) ?? '');
-  }, [user]);
+    setName(initialDisplayName);
+    setJobTitle(initialJobTitle);
+  }, [user?.id, initialDisplayName, initialJobTitle]);
 
   const initials = useMemo(
     () => initialsFor(name, user?.email),

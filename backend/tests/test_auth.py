@@ -6,7 +6,7 @@ from uuid import uuid4
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from app.auth.dependencies import get_current_user_id
+from app.auth.dependencies import get_current_user, get_current_user_id
 
 
 class FakeAuthClient:
@@ -23,6 +23,35 @@ class FakeAuthClient:
 
 
 class AuthDependencyTests(TestCase):
+    def test_full_user_and_id_dependencies_share_token_validation(self):
+        user_id = uuid4()
+        credentials = HTTPAuthorizationCredentials(scheme='Bearer', credentials='verified-token')
+        supabase = SimpleNamespace(auth=FakeAuthClient(
+            claims={'sub': str(user_id), 'role': 'authenticated', 'email': 'member@example.com'},
+        ))
+        user = asyncio.run(get_current_user(credentials, supabase))
+        self.assertEqual(user.id, asyncio.run(get_current_user_id(credentials, supabase)))
+        self.assertEqual(user.email, 'member@example.com')
+        for dependency in (get_current_user, get_current_user_id):
+            for claims in (None, {'sub': str(user_id), 'role': 'service_role'}, {'role': 'authenticated'}, {'sub': 'bad', 'role': 'authenticated'}):
+                with self.subTest(dependency=dependency.__name__, claims=claims):
+                    with self.assertRaises(HTTPException) as context:
+                        asyncio.run(dependency(credentials, SimpleNamespace(auth=FakeAuthClient(claims))))
+                    self.assertEqual(context.exception.status_code, 401)
+                    self.assertEqual(context.exception.headers, {'WWW-Authenticate': 'Bearer'})
+            with self.assertRaises(HTTPException) as context:
+                asyncio.run(dependency(None, supabase))
+            self.assertEqual(context.exception.status_code, 401)
+
+    def test_only_full_user_dependency_requires_email(self):
+        credentials = HTTPAuthorizationCredentials(scheme='Bearer', credentials='verified-token')
+        user_id = uuid4()
+        supabase = SimpleNamespace(auth=FakeAuthClient(claims={'sub': str(user_id), 'role': 'authenticated'}))
+        self.assertEqual(asyncio.run(get_current_user_id(credentials, supabase)), user_id)
+        with self.assertRaises(HTTPException) as context:
+            asyncio.run(get_current_user(credentials, supabase))
+        self.assertEqual(context.exception.status_code, 401)
+
     def test_returns_verified_user_uuid(self) -> None:
         user_id = uuid4()
         auth = FakeAuthClient(

@@ -1,6 +1,7 @@
 from typing import Annotated
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from uuid import UUID
+from starlette.concurrency import run_in_threadpool
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import RedirectResponse
@@ -196,9 +197,9 @@ async def organization_slack_status(
     repository: Annotated[SlackRepository, Depends(get_slack_repository)],
 ) -> OrganizationSlackBindingStatus:
     try:
-        if not repository.is_organization_member(user_id, organization_id):
+        if not await run_in_threadpool(repository.is_organization_member, user_id, organization_id):
             raise HTTPException(status_code=403, detail="Organization membership required")
-        return repository.get_organization_binding(organization_id)
+        return await run_in_threadpool(repository.get_organization_binding, organization_id)
     except SlackRepositoryError as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
 
@@ -221,7 +222,7 @@ async def refresh_organization_slack_channels(
     ],
 ) -> SlackChannelRefreshResponse:
     try:
-        if not repository.is_organization_member(user_id, organization_id):
+        if not await run_in_threadpool(repository.is_organization_member, user_id, organization_id):
             raise HTTPException(status_code=403, detail="Organization membership required")
         await cache_invalidator.invalidate_organization(str(organization_id))
         return await channel_service.refresh_organization_channels(organization_id)

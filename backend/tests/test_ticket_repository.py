@@ -21,6 +21,7 @@ class FakeSupabaseQuery:
         self.filters = []
         self.null_filters = []
         self.ordering = None
+        self.orders = []
         self.updated_payload = None
         self.delete_called = False
 
@@ -28,7 +29,7 @@ class FakeSupabaseQuery:
         self.inserted_payload = payload
         return self
 
-    def select(self, columns):
+    def select(self, columns, count=None):
         self.selected_columns = columns
         return self
 
@@ -50,12 +51,16 @@ class FakeSupabaseQuery:
 
     def order(self, column, desc=False):
         self.ordering = (column, desc)
+        self.orders.append((column, desc))
+        return self
+
+    def range(self, start, end):
         return self
 
     def execute(self):
         if self.error:
             raise self.error
-        return SimpleNamespace(data=self.data)
+        return SimpleNamespace(data=self.data, count=len(self.data) if isinstance(self.data, list) else 0)
 
 
 class FakeSupabaseClient:
@@ -87,6 +92,84 @@ def make_ticket() -> TicketCreate:
 
 
 class TicketRepositoryTests(TestCase):
+    def test_all_ticket_readback_paths_reject_invalid_database_rows(self):
+        ticket = make_ticket()
+        ticket_id, organization_id = uuid4(), uuid4()
+        changes = TicketUpdate(title='Fix checkout', description='Resolve failure', priority='HIGH', status='PENDING', assignee='Aisha')
+        operations = (
+            lambda repository: repository.create(ticket),
+            lambda repository: repository.list_for_owner(ticket.owner_id),
+            lambda repository: repository.list_for_organization(organization_id),
+            lambda repository: repository.update(ticket_id, ticket.owner_id, changes),
+            lambda repository: repository.update_status(ticket_id, ticket.owner_id, 'PENDING'),
+            lambda repository: repository.update_for_organization(organization_id, ticket_id, changes),
+        )
+        for index, operation in enumerate(operations):
+            with self.subTest(operation=index):
+                repository = TicketRepository(FakeSupabaseClient(FakeSupabaseQuery(data=[{}])))
+                with self.assertRaisesRegex(TicketRepositoryError, 'Supabase returned an invalid ticket record'):
+                    operation(repository)
+
+    def test_pagination_uses_real_postgrest_builder_with_one_offset_per_request(self):
+        import httpx
+        from postgrest import SyncPostgrestClient
+        offsets = []
+        rows = [dict(make_ticket().model_dump(mode='json'), id=str(uuid4())) for _ in range(5)]
+
+        def respond(request):
+            self.assertEqual(len(request.url.params.get_list('offset')), 1)
+            self.assertEqual(request.url.params['order'], 'created_at.desc,id.desc')
+            offset = int(request.url.params['offset'])
+            offsets.append(offset)
+            page = rows[offset:offset + 2]
+            return httpx.Response(200, json=page, headers={'content-range': f'{offset}-{offset + len(page) - 1}/5'})
+
+        with httpx.Client(transport=httpx.MockTransport(respond)) as http:
+            client = SyncPostgrestClient('https://example.invalid', http_client=http)
+            result = TicketRepository(client).list_for_owner(uuid4())
+        self.assertEqual(offsets, [0, 2, 4])
+        self.assertEqual(len(result), 5)
+
+    def test_slack_batch_uses_single_rpc_and_accepts_already_committed_result(self):
+        from app.schemas.ticket import TicketResponse
+        ticket = TicketResponse(**make_ticket().model_dump())
+        for committed in (True, False):
+            query = FakeSupabaseQuery(data=committed)
+            client = FakeSupabaseClient(query)
+            result = TicketRepository(client).commit_slack_delivery('Ev-atomic', [ticket], [])
+            self.assertIs(result, committed)
+            self.assertIsNone(client.table_name)
+            self.assertEqual(client.rpc_name, 'commit_slack_ticket_batch')
+            self.assertEqual(client.rpc_parameters['p_tickets'], [ticket.model_dump(mode='json')])
+
+    def test_slack_batch_propagates_database_failure(self):
+        query = FakeSupabaseQuery(error=RuntimeError('commit failed'))
+        with self.assertRaises(TicketRepositoryError):
+            TicketRepository(FakeSupabaseClient(query)).commit_slack_delivery('Ev-atomic', [], [])
+
+    def test_lists_all_tickets_when_server_caps_a_page(self):
+        owner_id = uuid4()
+        rows = [dict(make_ticket().model_dump(mode='json'), owner_id=str(owner_id), id=str(uuid4())) for _ in range(1001)]
+
+        class CappedQuery(FakeSupabaseQuery):
+            offset = 0
+
+            def select(self, columns, **kwargs):
+                return self
+
+            def range(self, start, end):
+                self.offset = start
+                return self
+
+            def execute(self):
+                return SimpleNamespace(data=rows[self.offset:self.offset + 400], count=len(rows))
+
+        for organization in (False, True):
+            repository = TicketRepository(FakeSupabaseClient(CappedQuery()))
+            result = repository.list_for_organization(uuid4()) if organization else repository.list_for_owner(owner_id)
+            self.assertEqual(len(result), 1001)
+            self.assertEqual(len({ticket.id for ticket in result}), 1001)
+
     def test_creates_and_validates_ticket(self) -> None:
         ticket = make_ticket()
         ticket_id = uuid4()
@@ -157,7 +240,8 @@ class TicketRepositoryTests(TestCase):
             query.filters,
             [("owner_id", str(ticket.owner_id))],
         )
-        self.assertEqual(query.ordering, ("created_at", True))
+        self.assertEqual(query.ordering, ("id", True))
+        self.assertEqual(query.orders, [("created_at", True), ("id", True)])
 
     def test_reports_ticket_list_failure(self) -> None:
         repository = TicketRepository(

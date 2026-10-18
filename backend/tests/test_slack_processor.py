@@ -58,6 +58,12 @@ class FakeTicketRepository:
         self.created.append(ticket)
         return SimpleNamespace(id=uuid4())
 
+    def commit_slack_delivery(self, event_id, tickets, results):
+        self.created.extend(tickets)
+        self.results = results
+        self.outcome = 'TICKET_CREATED' if tickets else 'IGNORED_NON_ACTIONABLE'
+        return True
+
 
 class FakeOllamaService:
     def __init__(self, actionable=True, task_count=1) -> None:
@@ -102,6 +108,28 @@ class FakeSlackChannelService:
 
 
 class SlackEventProcessorTests(TestCase):
+    def test_later_recipient_failure_leaves_no_partial_tickets_before_replay(self):
+        first, second = uuid4(), uuid4()
+        tickets = FakeTicketRepository()
+        users = FakeSlackUserService()
+        original = users.display_name
+
+        async def fail_second(owner_id, slack_user_id):
+            if slack_user_id == 'U-SECOND':
+                raise RuntimeError('Slack temporarily unavailable')
+            return await original(owner_id, slack_user_id)
+
+        users.display_name = fail_second
+        processor = SlackEventProcessor(FakeSlackRepository(), tickets, FakeOllamaService(), users)
+        event = SlackEvent(type='message', user='U-SENDER', text='<@U-FIRST> <@U-SECOND> fix checkout')
+        targets = [SlackMentionTarget(first, 'U-FIRST'), SlackMentionTarget(second, 'U-SECOND')]
+        with self.assertRaises(RuntimeError):
+            asyncio.run(processor.process('Ev-replay', 'T123', event, targets))
+        self.assertEqual(tickets.created, [])
+        users.display_name = original
+        asyncio.run(processor.process('Ev-replay', 'T123', event, targets))
+        self.assertEqual(len(tickets.created), 2)
+
     def test_actionable_mention_creates_private_owner_ticket(self) -> None:
         owner_id = uuid4()
         slack_repository = FakeSlackRepository()
@@ -144,11 +172,11 @@ class SlackEventProcessorTests(TestCase):
         self.assertEqual(ticket.scope, "PRIVATE")
         self.assertEqual(
             [state[1] for state in slack_repository.states],
-            ["PROCESSING", "COMPLETED"],
+            ["PROCESSING"],
         )
-        self.assertEqual(slack_repository.states[-1][3], "TICKET_CREATED")
+        self.assertEqual(ticket_repository.outcome, "TICKET_CREATED")
         self.assertEqual(
-            slack_repository.states[-1][4][0]["analysis"]["isActionableTask"],
+            ticket_repository.results[0]["analysis"]["isActionableTask"],
             True,
         )
 
@@ -175,7 +203,7 @@ class SlackEventProcessorTests(TestCase):
         )
 
         self.assertEqual(len(tickets.created), 3)
-        self.assertEqual(len(repository.states[-1][4][0]["ticket_ids"]), 3)
+        self.assertEqual(len(tickets.results[0]["ticket_ids"]), 3)
 
     def test_non_actionable_mention_completes_without_ticket(self) -> None:
         slack_repository = FakeSlackRepository()
@@ -200,9 +228,9 @@ class SlackEventProcessorTests(TestCase):
         )
 
         self.assertEqual(ticket_repository.created, [])
-        self.assertEqual(slack_repository.states[-1][1], "COMPLETED")
+        self.assertEqual(ticket_repository.outcome, "IGNORED_NON_ACTIONABLE")
         self.assertEqual(
-            slack_repository.states[-1][3],
+            ticket_repository.outcome,
             "IGNORED_NON_ACTIONABLE",
         )
 
@@ -258,7 +286,7 @@ class SlackEventProcessorTests(TestCase):
         self.assertEqual(ticket.source_channel_name, "product-team")
         self.assertEqual(ticket.source_message_ts, "123.456")
         self.assertEqual(slack_channels.lookups, [(assignee_id, "T123", "C123", "channel")])
-        self.assertEqual(slack_repository.states[-1][4][0]["scope"], "ORGANIZATION")
+        self.assertEqual(tickets.results[0]["scope"], "ORGANIZATION")
 
     def test_mapped_slack_channel_scopes_organization_ticket_to_project_board(self) -> None:
         assigner_id = uuid4()
@@ -310,7 +338,7 @@ class SlackEventProcessorTests(TestCase):
             slack_repository.board_binding_lookup,
             (organization_id, "T123", "C123"),
         )
-        self.assertEqual(slack_repository.states[-1][4][0]["board_id"], str(board_id))
+        self.assertEqual(tickets.results[0]["board_id"], str(board_id))
 
     def test_lead_assignment_in_private_channel_creates_organization_ticket(self) -> None:
         assigner_id = uuid4()

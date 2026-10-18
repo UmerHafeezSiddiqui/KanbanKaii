@@ -218,30 +218,6 @@ class SlackRepository:
                 "Supabase returned an invalid Slack workspace binding"
             ) from exc
 
-    def get_connection_status(self, owner_id: UUID) -> str | None:
-        try:
-            result = (
-                self.client.table("integrations")
-                .select("display_name")
-                .eq("owner_id", str(owner_id))
-                .eq("provider", "SLACK")
-                .limit(1)
-                .execute()
-            )
-        except Exception as exc:
-            raise SlackRepositoryError(
-                "Supabase could not load the Slack connection"
-            ) from exc
-
-        rows: Any = result.data
-        if not isinstance(rows, list):
-            raise SlackRepositoryError("Supabase returned an invalid Slack connection")
-        if not rows:
-            return None
-        display_name = rows[0].get("display_name")
-        if not isinstance(display_name, str) or not display_name:
-            raise SlackRepositoryError("Supabase returned an invalid Slack connection")
-        return display_name
 
     def get_installation(self, owner_id: UUID) -> SlackStoredInstallation | None:
         try:
@@ -389,6 +365,17 @@ class SlackRepository:
                 "Supabase returned an invalid Slack event claim"
             )
         return result.data
+
+    def list_stale_deliveries(self, before: str) -> list[str]:
+        try:
+            result = (self.client.table("webhook_deliveries")
+                      .select("external_event_id").eq("provider", "SLACK")
+                      .in_("status", ["RECEIVED", "PROCESSING"])
+                      .is_("tickets_committed_at", "null").lt("received_at", before)
+                      .order("received_at").limit(100).execute())
+            return [row["external_event_id"] for row in result.data]
+        except Exception as error:
+            raise SlackRepositoryError("Supabase could not load stale Slack deliveries") from error
 
     def get_webhook_delivery(self, event_id: str) -> SlackQueuedDelivery:
         try:
@@ -704,6 +691,7 @@ class SlackRepository:
                 .update(payload)
                 .eq("provider", "SLACK")
                 .eq("external_event_id", event_id)
+                .is_("tickets_committed_at", "null")
                 .execute()
             )
         except Exception as exc:
@@ -711,5 +699,7 @@ class SlackRepository:
                 "Supabase could not update the Slack event"
             ) from exc
 
-        if not isinstance(result.data, list) or len(result.data) != 1:
+        if not isinstance(result.data, list) or len(result.data) > 1:
             raise SlackRepositoryError("Slack event delivery was not found")
+        if not result.data:
+            self.get_webhook_delivery(event_id)

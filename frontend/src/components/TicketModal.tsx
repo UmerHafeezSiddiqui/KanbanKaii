@@ -11,7 +11,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,15 +52,17 @@ export function TicketModal({ ticket, isOpen, defaultStatus, onClose, onSave, on
   const isAssignedTicket = Boolean(ticket && ticket.scope !== 'PRIVATE');
   const hasRequester = Boolean(ticket?.requestedByName);
 
+  const defaultAssigneeId = assigneeOptions?.[0]?.value ?? '';
   useEffect(() => {
+    if (!isOpen) return;
     setTitle(ticket?.title ?? '');
     setDescription(ticket?.description ?? '');
     setAssignee(ticket?.assignee ?? '');
-    setAssigneeUserId(ticket?.assigneeUserId ?? assigneeOptions?.[0]?.value ?? '');
+    setAssigneeUserId(ticket?.assigneeUserId ?? defaultAssigneeId);
     setPriority(ticket?.priority ?? 'Medium');
     setStatus(ticket?.status ?? defaultStatus);
     setSource(ticket?.source ?? 'Manual');
-  }, [ticket, defaultStatus, isOpen, assigneeOptions]);
+  }, [ticket?.id, ticket?.title, ticket?.description, ticket?.assignee, ticket?.assigneeUserId, ticket?.priority, ticket?.status, ticket?.source, defaultStatus, isOpen, defaultAssigneeId]);
 
   const submit = async () => {
     if (!title.trim() || !description.trim() || isSaving) return;
@@ -89,9 +91,10 @@ export function TicketModal({ ticket, isOpen, defaultStatus, onClose, onSave, on
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="grid max-h-[78dvh] w-[min(21rem,calc(100vw-3.5rem))] max-w-[21rem] grid-rows-[auto,minmax(0,1fr),auto] gap-0 overflow-hidden rounded-2xl border-white/80 bg-white/95 p-0 shadow-2xl sm:max-h-[82vh] sm:w-[26rem] sm:max-w-md">
+      <DialogContent className="grid max-h-[78dvh] w-[min(21rem,calc(100vw-3.5rem))] max-w-[21rem] grid-rows-[auto,minmax(0,1fr),auto] gap-0 overflow-hidden rounded-2xl border-slate-200 bg-white p-0 shadow-2xl sm:max-h-[82vh] sm:w-[26rem] sm:max-w-md">
         <DialogHeader className="border-b border-slate-100 px-3.5 py-2.5 pr-10 sm:px-5 sm:py-3">
           <DialogTitle className="text-center text-sm sm:text-left sm:text-base">{readOnly ? 'Ticket details' : ticket ? 'Edit ticket' : 'Create ticket'}</DialogTitle>
+          <DialogDescription className="sr-only">{readOnly ? "Review this ticket and its assignment details." : "Edit the task details, priority and status, then save your changes."}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-2.5 overflow-y-auto px-3.5 py-3 sm:gap-3 sm:px-5">
           {(isAssignedTicket || hasRequester) && ticket && (
@@ -131,23 +134,23 @@ export function TicketModal({ ticket, isOpen, defaultStatus, onClose, onSave, on
               )}
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Priority</Label>
+              <Label className="text-xs" htmlFor="ticket-priority">Priority</Label>
               <Select value={priority} onValueChange={(value: TicketPriority) => setPriority(value)} disabled={readOnly}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="ticket-priority"><SelectValue /></SelectTrigger>
                 <SelectContent>{TICKET_PRIORITIES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Status</Label>
+              <Label className="text-xs" htmlFor="ticket-status">Status</Label>
               <Select value={status} onValueChange={(value: TicketStatus) => setStatus(value)} disabled={readOnly}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="ticket-status"><SelectValue /></SelectTrigger>
                 <SelectContent>{TICKET_STATUSES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid gap-1.5">
-              <Label className="text-xs">Source</Label>
+              <Label className="text-xs" htmlFor="ticket-source">Source</Label>
               <Select value={source} onValueChange={(value: TicketSource) => setSource(value)} disabled={readOnly}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger id="ticket-source"><SelectValue /></SelectTrigger>
                 <SelectContent>{TICKET_SOURCES.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
               </Select>
             </div>

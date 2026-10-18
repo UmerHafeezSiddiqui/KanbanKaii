@@ -151,6 +151,18 @@ export function KanbanBoard({
     });
   }, [organizationBoardId, priorityFilter, query, sortMode, sourceFilter, tickets]);
 
+  const ticketsByStatus = useMemo(() => {
+    const grouped: Record<TicketStatus, Ticket[]> = {
+      Pending: [],
+      'In Progress': [],
+      Completed: [],
+    };
+    for (const ticket of visibleTickets) {
+      grouped[ticket.status]?.push(ticket);
+    }
+    return grouped;
+  }, [visibleTickets]);
+
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
       if (!controlsRef.current?.contains(event.target as Node)) setOpenMenu(null);
@@ -188,7 +200,7 @@ export function KanbanBoard({
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       if (error instanceof TypeError) {
-        setLoadError(null);
+        setLoadError('Could not connect to the ticket API. Check your connection and retry.');
         return;
       }
       setLoadError(error instanceof Error ? error.message : 'Could not load tickets');
@@ -410,6 +422,7 @@ export function KanbanBoard({
             <label className="flex min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm sm:w-72 sm:flex-none">
               <input
                 autoFocus
+                aria-label="Search tickets"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search tickets"
@@ -419,23 +432,25 @@ export function KanbanBoard({
           )}
         </div>
         <div ref={controlsRef} className="relative ml-auto flex w-auto shrink-0 items-center justify-end gap-1 sm:gap-2">
-          {canCreate && <button type="button" onClick={() => openCreator('Pending')} className="flex items-center gap-1.5 rounded border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 shadow-sm hover:border-violet-300 hover:text-violet-600">
+          {canCreate && <button type="button" aria-label="New ticket" onClick={() => openCreator('Pending')} className="flex min-h-10 items-center gap-2 rounded-lg bg-violet-700 px-3 py-2 text-sm font-semibold text-white hover:bg-violet-800">
             <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">New ticket</span>
           </button>}
           <button
             type="button"
+            aria-label="Filter tickets"
             aria-expanded={openMenu === 'filter'}
             onClick={() => setOpenMenu((menu) => menu === 'filter' ? null : 'filter')}
-            className={`flex items-center gap-1.5 rounded px-2 py-1.5 text-[11px] font-medium hover:bg-slate-100 ${activeFilterCount ? 'text-violet-700' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`flex items-center min-h-10 gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-100 ${activeFilterCount ? 'text-violet-700' : 'text-slate-500 hover:text-slate-800'}`}
           >
             <ListFilter className="h-3.5 w-3.5" /><span className="hidden sm:inline">Filter</span>
             {activeFilterCount > 0 && <span className="grid h-4 min-w-4 place-items-center rounded-full bg-violet-100 px-1 text-[9px] font-bold text-violet-700">{activeFilterCount}</span>}
           </button>
           <button
             type="button"
+            aria-label="Sort tickets"
             aria-expanded={openMenu === 'sort'}
             onClick={() => setOpenMenu((menu) => menu === 'sort' ? null : 'sort')}
-            className={`flex items-center gap-1.5 rounded px-2 py-1.5 text-[11px] font-medium hover:bg-slate-100 ${sortMode !== 'NEWEST' ? 'text-violet-700' : 'text-slate-500 hover:text-slate-800'}`}
+            className={`flex items-center min-h-10 gap-2 rounded-lg px-3 py-2 text-sm font-medium hover:bg-slate-100 ${sortMode !== 'NEWEST' ? 'text-violet-700' : 'text-slate-500 hover:text-slate-800'}`}
           >
             <ArrowDownUp className="h-3.5 w-3.5" /><span className="hidden sm:inline">Sort</span>
           </button>
@@ -530,13 +545,13 @@ export function KanbanBoard({
           </div>
         )}
         <div className="overflow-x-auto overscroll-x-contain">
-          <div className="flex min-h-[calc(100dvh-11rem)] snap-x snap-mandatory gap-3 bg-white p-3 sm:grid sm:min-h-[calc(100dvh-7.5rem)] sm:min-w-[780px] sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-slate-200 sm:p-0">
+          <div className="flex min-h-[calc(100dvh-11rem)] snap-x snap-mandatory gap-4 bg-slate-50 p-4 sm:grid sm:min-h-[calc(100dvh-7.5rem)] sm:min-w-[780px] sm:grid-cols-3 sm:gap-4 sm:p-6">
             {TICKET_STATUSES.map((status) => (
               <KanbanColumn
                 key={status}
                 id={status}
                 title={status}
-                tickets={visibleTickets.filter((ticket) => ticket.status === status)}
+                tickets={ticketsByStatus[status] ?? []}
                 onEdit={openEditor}
                 onAdd={openCreator}
                 canAdd={canCreate}

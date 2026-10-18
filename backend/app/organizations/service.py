@@ -4,8 +4,9 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from starlette.concurrency import run_in_threadpool
+from app.auth.dependencies import AuthenticatedUser
 
-from app.organizations.repository import OrganizationRepository
+from app.organizations.repository import OrganizationRepository, OrganizationPermissionError
 from app.organizations.invite_store import (
     OrganizationInviteStore,
     RedisInviteDraft,
@@ -15,32 +16,6 @@ from app.organizations.schemas import (
     OrganizationInviteCreated,
     OrganizationInviteResponse,
 )
-
-
-class OrganizationService:
-    def __init__(self, repository: OrganizationRepository) -> None:
-        self.repository = repository
-
-    def create_invite(
-        self,
-        organization_id: UUID,
-        request: OrganizationInviteCreate,
-    ) -> OrganizationInviteCreated:
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        expires_at = datetime.now(timezone.utc) + timedelta(hours=request.expires_in_hours)
-        invite = self.repository.create_invite(
-            organization_id,
-            token_hash,
-            request.intended_email.lower(),
-            request.default_role,
-            expires_at.isoformat(),
-        )
-        return OrganizationInviteCreated(**invite.model_dump(), token=token)
-
-    def accept_invite(self, token: str) -> UUID:
-        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
-        return self.repository.accept_invite(token_hash)
 
 
 class RedisOrganizationInviteService:
@@ -81,13 +56,16 @@ class RedisOrganizationInviteService:
         )
         return OrganizationInviteCreated(**invite.model_dump(), token=token)
 
-    async def accept_invite(self, invite: OrganizationInviteResponse) -> UUID:
+    async def accept_invite(self, invite: OrganizationInviteResponse, user: AuthenticatedUser) -> UUID:
+        if (invite.intended_email or "").strip().lower() != user.email.strip().lower():
+            raise OrganizationPermissionError("This invitation is not for your account")
         return await run_in_threadpool(
             self.repository.accept_redis_invite,
             invite.organization_id,
             invite.default_role,
             invite.created_by,
             invite.intended_email or "",
+            user.id,
         )
 
     @staticmethod

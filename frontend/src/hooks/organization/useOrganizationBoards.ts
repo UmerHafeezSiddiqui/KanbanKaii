@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
+import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import {
   addOrganizationBoardMember,
@@ -63,6 +63,9 @@ export function useOrganizationBoards({
   const [slackChannelId, setSlackChannelId] = useState('');
   const [slackChannelName, setSlackChannelName] = useState('');
   const [slackChannelRefresh, setSlackChannelRefresh] = useState<SlackChannelRefreshResponse | null>(null);
+  const selectionRequest = useRef(0);
+
+  useEffect(() => () => { selectionRequest.current++; }, [organization?.id]);
 
   const changeBoardName = (value: string) => {
     setBoardName(value);
@@ -74,22 +77,28 @@ export function useOrganizationBoards({
     setBoardSlug(slugify(value));
   };
 
-  const selectBoard = async (boardId: string) => {
+  const selectBoard = async (boardId: string | null) => {
     if (!organization) return;
+    const request = ++selectionRequest.current;
     setSelectedBoardId(boardId);
+    setBoardMembers([]);
+    setBoardSlackChannels([]);
     setConfirmBoardDelete(null);
     setConfirmBoardMemberRemove(null);
     setConfirmSlackChannelRemove(null);
     setShowSlackChannelForm(false);
     setSlackChannelRefresh(null);
+    if (boardId === null) return;
     try {
       const [loadedBoardMembers, loadedBoardSlackChannels] = await Promise.all([
         listOrganizationBoardMembers(organization.id, boardId),
         listOrganizationBoardSlackChannels(organization.id, boardId),
       ]);
+      if (request !== selectionRequest.current) return;
       setBoardMembers(loadedBoardMembers);
       setBoardSlackChannels(loadedBoardSlackChannels);
     } catch (boardError) {
+      if (request !== selectionRequest.current) return;
       toast.error(boardError instanceof Error ? boardError.message : 'Could not load board members');
     }
   };
@@ -105,9 +114,7 @@ export function useOrganizationBoards({
       setBoardSlugEdited(false);
       const loadedBoards = await listOrganizationBoards(organization.id);
       setBoards(loadedBoards);
-      setSelectedBoardId(board.id);
-      setBoardMembers(await listOrganizationBoardMembers(organization.id, board.id));
-      setBoardSlackChannels(await listOrganizationBoardSlackChannels(organization.id, board.id));
+      await selectBoard(board.id);
       toast.success('Project board created');
     } catch (boardError) {
       toast.error(boardError instanceof Error ? boardError.message : 'Could not create board');
@@ -222,15 +229,7 @@ export function useOrganizationBoards({
       const loadedBoards = await listOrganizationBoards(organization.id);
       const nextBoardId = loadedBoards[0]?.id ?? null;
       setBoards(loadedBoards);
-      setSelectedBoardId(nextBoardId);
-      const [loadedBoardMembers, loadedBoardSlackChannels] = nextBoardId
-        ? await Promise.all([
-            listOrganizationBoardMembers(organization.id, nextBoardId),
-            listOrganizationBoardSlackChannels(organization.id, nextBoardId),
-          ])
-        : [[], []];
-      setBoardMembers(loadedBoardMembers);
-      setBoardSlackChannels(loadedBoardSlackChannels);
+      await selectBoard(nextBoardId);
       setConfirmBoardDelete(null);
       toast.success('Project board deleted');
     } catch (boardError) {

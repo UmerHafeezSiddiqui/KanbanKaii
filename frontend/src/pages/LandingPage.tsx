@@ -1,6 +1,5 @@
 import ArrowRight from "lucide-react/dist/esm/icons/arrow-right";
 import Check from "lucide-react/dist/esm/icons/check";
-import Sparkles from "lucide-react/dist/esm/icons/sparkles";
 
 import { KanbanKaiiPipelineMockup } from "@/components/kanbanmockup/KanbanKaiiPipelineMockup";
 
@@ -30,7 +29,7 @@ export function LandingPage() {
   const workspaceLabel = "Start for free";
 
   return (
-    <main className="landing-scroll relative isolate h-screen overflow-y-auto overflow-x-hidden bg-[#f7f7fb] text-slate-950">
+    <main className="landing-scroll landing-original relative isolate h-screen overflow-y-auto overflow-x-hidden bg-[#f7f7fb] text-slate-950">
       <LandingGradientPatches />
 
       <div className="relative overflow-hidden">
@@ -53,7 +52,7 @@ export function LandingPage() {
             className="flex items-center gap-3"
             aria-label="KanbanKaii home"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-600 text-sm font-black text-white shadow-lg shadow-violet-300/50">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-600 text-sm font-semibold text-white shadow-lg shadow-violet-300/50">
               K
             </span>
             <span className="text-lg font-bold tracking-tight">KanbanKaii</span>
@@ -92,10 +91,9 @@ export function LandingPage() {
           <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(20rem,0.95fr)] lg:gap-4">
             <div className="relative z-10 max-w-4xl">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-violet-200 bg-white/80 px-3.5 py-2 text-xs font-bold uppercase tracking-[0.16em] text-violet-700 shadow-sm backdrop-blur">
-                <Sparkles className="h-3.5 w-3.5" />
                 Conversation into action
               </div>
-              <h1 className="text-5xl font-black leading-[0.98] tracking-[-0.055em] text-slate-950 sm:text-6xl lg:text-[5rem] xl:text-[5.65rem]">
+              <h1 className="text-5xl font-semibold leading-[0.98] tracking-[-0.035em] text-slate-950 sm:text-6xl lg:text-[5rem] xl:text-[5.65rem]">
                 Your messages already know what needs to be done.
               </h1>
               <p className="mt-6 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
@@ -172,7 +170,7 @@ export function LandingPage() {
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-600">
                 How it works
               </p>
-              <h2 className="mt-4 text-4xl font-black tracking-[-0.04em] sm:text-5xl">
+              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.04em] sm:text-5xl">
                 Less copying. More doing.
               </h2>
             </div>
@@ -184,13 +182,13 @@ export function LandingPage() {
           <div className="mt-14">
             <KanbanKaiiPipelineMockup />
           </div>
-          <div className="mt-14 grid gap-3 overflow-hidden rounded-[2rem] border border-violet-100 bg-white/55 p-3 shadow-xl shadow-violet-100/40 backdrop-blur-xl md:grid-cols-3">
+          <div id="features" className="mt-14 grid gap-3 overflow-hidden rounded-[2rem] border border-violet-100 bg-white/55 p-3 shadow-xl shadow-violet-100/40 backdrop-blur-xl md:grid-cols-3">
             {features.map((feature) => (
               <article
                 key={feature.number}
                 className="rounded-[1.5rem] bg-white/78 p-7 shadow-sm shadow-violet-100/50 transition hover:-translate-y-0.5 hover:bg-white sm:p-9"
               >
-                <span className="text-xs font-black text-violet-400">
+                <span className="text-xs font-semibold text-violet-400">
                   {feature.number}
                 </span>
                 <h3 className="mt-12 text-xl font-bold text-slate-950">
@@ -226,7 +224,7 @@ export function LandingPage() {
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-violet-600">
               Ready when you are
             </p>
-            <h2 className="mt-4 max-w-2xl text-5xl font-black leading-[0.98] tracking-[-0.055em] sm:text-6xl">
+            <h2 className="mt-4 max-w-2xl text-5xl font-semibold leading-[0.98] tracking-[-0.035em] sm:text-6xl">
               Give every real request somewhere to go.
             </h2>
           </div>

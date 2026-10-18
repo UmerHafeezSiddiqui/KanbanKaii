@@ -3,16 +3,12 @@ param(
     [string]$CloudflaredPath = "cloudflared",
     [switch]$UseNgrok,
     [string]$NgrokPath = "C:\ngrok\ngrok.exe",
-    [string]$RedisContainer = "kanbankaii-redis",
-    [string]$OllamaModel = "llama3.2:3b",
-    [switch]$SkipOllama
+    [string]$RedisContainer = "kanbankaii-redis"
 )
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $BackendRoot = Join-Path $ProjectRoot "backend"
-$Uvicorn = Join-Path $BackendRoot "venv\Scripts\uvicorn.exe"
-$Arq = Join-Path $BackendRoot "venv\Scripts\arq.exe"
 
 if ($UseNgrok -and $TunnelName) {
     throw "Choose either -UseNgrok or -TunnelName, not both."
@@ -55,9 +51,56 @@ function Start-ServiceTerminal(
         Out-Null
 }
 
-if (-not (Test-Path $Uvicorn) -or -not (Test-Path $Arq)) {
-    throw "Backend virtual environment commands are missing. Expected them under backend\venv\Scripts."
+function Wait-ForWorker([int]$Attempts = 15) {
+    Push-Location $BackendRoot
+    try {
+        $lastCheckOutput = @()
+        for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+            $previousErrorAction = $ErrorActionPreference
+            try {
+                # ARQ logs successful checks to stderr; PowerShell 5 must still read its exit code.
+                $ErrorActionPreference = 'Continue'
+                $lastCheckOutput = @(& $Python -m arq --check app.workers.slack_worker.WorkerSettings 2>&1)
+                $checkExitCode = $LASTEXITCODE
+            }
+            finally {
+                $ErrorActionPreference = $previousErrorAction
+            }
+            if ($checkExitCode -eq 0) {
+                Write-Host "ARQ worker heartbeat is ready." -ForegroundColor Green
+                return
+            }
+            Start-Sleep -Seconds 1
+        }
+        $details = ($lastCheckOutput | ForEach-Object { $_.ToString() } | Select-Object -Last 8) -join "`n"
+        throw "ARQ worker has no live heartbeat. Check its terminal, credentials and Redis configuration.`n$details"
+    }
+    finally {
+        Pop-Location
+    }
 }
+
+Write-Step "Finding a working Python environment"
+$Python = $null
+foreach ($environment in @("backend\.venv", "backend\venv", ".runtime\audit-venv")) {
+    $candidate = Join-Path $ProjectRoot "$environment\Scripts\python.exe"
+    if (Test-Path $candidate) {
+        try {
+            & $candidate -c "import uvicorn, arq" 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                $Python = $candidate
+                break
+            }
+        }
+        catch {
+            continue
+        }
+    }
+}
+if (-not $Python) {
+    throw "No working backend Python environment with uvicorn and arq was found. Create backend\.venv and install backend\requirements.txt."
+}
+Write-Host "Using $Python"
 
 Write-Step "Checking Docker and Redis"
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
@@ -68,40 +111,29 @@ if ($LASTEXITCODE -ne 0) {
     throw "Docker Desktop is not running. Start it, wait until it is ready, then run this script again."
 }
 
-$containerExists = docker container inspect $RedisContainer 2>$null
+$containerJson = docker container inspect $RedisContainer 2>$null
 if ($LASTEXITCODE -ne 0) {
-    throw "Redis container '$RedisContainer' does not exist. Create it using the Redis command in COMMANDS.md."
+    throw "Redis container '$RedisContainer' does not exist. Create it with a named /data volume and -p 127.0.0.1:6379:6379. See README.md."
 }
-$redisRunning = docker inspect -f "{{.State.Running}}" $RedisContainer 2>$null
-if ($redisRunning -ne "true") {
+$container = @($containerJson | ConvertFrom-Json)[0]
+$bindings = @($container.HostConfig.PortBindings.'6379/tcp')
+if (-not $bindings.Count -or @($bindings | Where-Object { $_.HostIp -notin @("127.0.0.1", "::1") }).Count) {
+    throw "Redis '$RedisContainer' must publish port 6379 only on loopback. Recreate it with -p 127.0.0.1:6379:6379, preserving its existing /data volume. No container or volume was changed."
+}
+if ($container.HostConfig.NetworkMode -eq "host") {
+    throw "Redis host networking is not supported by this local launcher. Use a bridge network with a loopback port binding."
+}
+if (-not $container.State.Running) {
     docker start $RedisContainer | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not start Redis container '$RedisContainer'."
+    }
 }
 $pong = docker exec $RedisContainer redis-cli ping 2>$null
 if ($pong -ne "PONG") {
     throw "Redis started but did not return PONG."
 }
 Write-Host "Redis is ready." -ForegroundColor Green
-
-if ($SkipOllama) {
-    Write-Step "Skipping Ollama"
-    Write-Host "Ollama checks were skipped. Ensure AI_MODEL_PROVIDER is set to a hosted provider such as gemini." -ForegroundColor Yellow
-}
-else {
-    Write-Step "Checking Ollama and model"
-    $Ollama = Get-Command ollama -ErrorAction SilentlyContinue
-    if (-not $Ollama) {
-        throw "Ollama was not found in PATH. Install it or add ollama.exe to PATH."
-    }
-    if (-not (Test-HttpEndpoint "http://127.0.0.1:11434/api/tags")) {
-        Start-Process $Ollama.Source -ArgumentList "serve" -WindowStyle Hidden | Out-Null
-        Wait-ForEndpoint "http://127.0.0.1:11434/api/tags" "Ollama"
-    }
-    $modelInstalled = (& $Ollama.Source list) -match [regex]::Escape($OllamaModel)
-    if (-not $modelInstalled) {
-        throw "Ollama model '$OllamaModel' is missing. Run: ollama pull $OllamaModel"
-    }
-    Write-Host "Ollama model $OllamaModel is ready." -ForegroundColor Green
-}
 
 Write-Step "Starting FastAPI"
 if (Test-HttpEndpoint "http://127.0.0.1:8000/health") {
@@ -111,13 +143,13 @@ else {
     Start-ServiceTerminal `
         "KanbanKaii - FastAPI" `
         $BackendRoot `
-        "& '$Uvicorn' app.main:app --host 127.0.0.1 --port 8000"
+        "& '$Python' -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
     Wait-ForEndpoint "http://127.0.0.1:8000/health" "FastAPI"
 }
 
 Write-Step "Starting ARQ worker"
 $workerRunning = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like "*app.workers.slack_worker.WorkerSettings*" } |
+    Where-Object { $_.Name -eq 'python.exe' -and $_.CommandLine -like "*app.workers.slack_worker.WorkerSettings*" -and $_.CommandLine -notlike '*--check*' } |
     Select-Object -First 1
 if ($workerRunning) {
     Write-Host "ARQ worker is already running." -ForegroundColor Yellow
@@ -126,9 +158,10 @@ else {
     Start-ServiceTerminal `
         "KanbanKaii - ARQ Worker" `
         $BackendRoot `
-        "& '$Arq' app.workers.slack_worker.WorkerSettings"
+        "& '$Python' -m arq app.workers.slack_worker.WorkerSettings"
     Write-Host "ARQ worker terminal opened." -ForegroundColor Green
 }
+Wait-ForWorker
 
 if ($UseNgrok) {
     Write-Step "Starting ngrok"

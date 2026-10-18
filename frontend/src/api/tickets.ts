@@ -5,7 +5,7 @@ import type {
   TicketStatus,
   TicketFormValues,
 } from '@/types/ticket';
-import { getSupabaseClient } from '@/lib/supabase';
+import { apiRequest } from './client';
 
 type ApiPriority = 'HIGH' | 'MEDIUM' | 'LOW';
 type ApiStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED';
@@ -102,47 +102,13 @@ interface FetchTicketsOptions {
   boardId?: string;
 }
 
-async function authenticatedHeaders(
-  includeJson = false,
-): Promise<Record<string, string>> {
-  const { data, error } = await getSupabaseClient().auth.getSession();
-  if (error || !data.session?.access_token) {
-    throw new Error('Your session has expired. Please sign in again.');
-  }
-
-  return {
-    Authorization: `Bearer ${data.session.access_token}`,
-    'ngrok-skip-browser-warning': '1',
-    ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
-  };
-}
-
-async function responseError(response: Response, fallback: string): Promise<Error> {
-  const body = await response.json().catch(() => null) as { detail?: string } | null;
-  return new Error(body?.detail ?? `${fallback} (${response.status})`);
-}
-
 export async function fetchTickets(
   options: FetchTicketsOptions = {},
 ): Promise<Ticket[]> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-  if (!apiBaseUrl) {
-    throw new Error('Frontend API configuration is missing');
-  }
-
-  const url = new URL('/api/tickets', apiBaseUrl);
-  if (options.status) url.searchParams.set('status', options.status);
-
-  const response = await fetch(url, {
+  const tickets = await apiRequest<ApiTicket[]>('/api/tickets', {
     signal: options.signal,
-    headers: await authenticatedHeaders(),
+    params: { status: options.status },
   });
-  if (!response.ok) {
-    throw await responseError(response, 'Could not load tickets');
-  }
-
-  const tickets = (await response.json()) as ApiTicket[];
   return tickets.map(mapApiTicket);
 }
 
@@ -150,55 +116,37 @@ export async function fetchOrganizationTickets(
   organizationId: string,
   options: FetchTicketsOptions = {},
 ): Promise<Ticket[]> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!apiBaseUrl) throw new Error('Frontend API configuration is missing');
-
-  const url = new URL(`/api/tickets/organizations/${organizationId}`, apiBaseUrl);
-  if (options.status) url.searchParams.set('status', options.status);
-  if (options.view) url.searchParams.set('view', options.view);
-  if (options.boardId) url.searchParams.set('board_id', options.boardId);
-  const response = await fetch(url, {
-    signal: options.signal,
-    headers: await authenticatedHeaders(),
-  });
-  if (!response.ok) throw await responseError(response, 'Could not load organization tickets');
-  return ((await response.json()) as ApiTicket[]).map(mapApiTicket);
+  const tickets = await apiRequest<ApiTicket[]>(
+    `/api/tickets/organizations/${organizationId}`,
+    {
+      signal: options.signal,
+      params: {
+        status: options.status,
+        view: options.view,
+        board_id: options.boardId,
+      },
+    },
+  );
+  return tickets.map(mapApiTicket);
 }
 
 export async function updateTicketStatus(
   ticketId: string,
   status: TicketStatus,
 ): Promise<Ticket> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-  if (!apiBaseUrl) {
-    throw new Error('Frontend API configuration is missing');
-  }
-
-  const url = new URL(`/api/tickets/${ticketId}/status`, apiBaseUrl);
-
-  const response = await fetch(url, {
+  const ticket = await apiRequest<ApiTicket>(`/api/tickets/${ticketId}/status`, {
     method: 'PATCH',
-    headers: await authenticatedHeaders(true),
     body: JSON.stringify({ status: apiStatusMap[status] }),
   });
-  if (!response.ok) {
-    throw await responseError(response, 'Could not update ticket');
-  }
-
-  return mapApiTicket((await response.json()) as ApiTicket);
+  return mapApiTicket(ticket);
 }
 
 export async function updateTicket(
   ticketId: string,
   values: TicketFormValues,
 ): Promise<Ticket> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!apiBaseUrl) throw new Error('Frontend API configuration is missing');
-
-  const response = await fetch(new URL(`/api/tickets/${ticketId}`, apiBaseUrl), {
+  const ticket = await apiRequest<ApiTicket>(`/api/tickets/${ticketId}`, {
     method: 'PATCH',
-    headers: await authenticatedHeaders(true),
     body: JSON.stringify({
       title: values.title,
       description: values.description,
@@ -207,11 +155,7 @@ export async function updateTicket(
       assignee: values.assignee,
     }),
   });
-  if (!response.ok) {
-    throw await responseError(response, 'Could not update ticket');
-  }
-
-  return mapApiTicket((await response.json()) as ApiTicket);
+  return mapApiTicket(ticket);
 }
 
 export async function updateOrganizationTicket(
@@ -219,13 +163,10 @@ export async function updateOrganizationTicket(
   ticketId: string,
   values: TicketFormValues,
 ): Promise<Ticket> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!apiBaseUrl) throw new Error('Frontend API configuration is missing');
-  const response = await fetch(
-    new URL(`/api/tickets/organizations/${organizationId}/${ticketId}`, apiBaseUrl),
+  const ticket = await apiRequest<ApiTicket>(
+    `/api/tickets/organizations/${organizationId}/${ticketId}`,
     {
       method: 'PATCH',
-      headers: await authenticatedHeaders(true),
       body: JSON.stringify({
         title: values.title,
         description: values.description,
@@ -235,20 +176,12 @@ export async function updateOrganizationTicket(
       }),
     },
   );
-  if (!response.ok) throw await responseError(response, 'Could not update organization ticket');
-  return mapApiTicket((await response.json()) as ApiTicket);
+  return mapApiTicket(ticket);
 }
 
 export async function createTicket(values: TicketFormValues): Promise<Ticket> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-  if (!apiBaseUrl) {
-    throw new Error('Frontend API configuration is missing');
-  }
-
-  const response = await fetch(new URL('/api/tickets', apiBaseUrl), {
+  const ticket = await apiRequest<ApiTicket>('/api/tickets', {
     method: 'POST',
-    headers: await authenticatedHeaders(true),
     body: JSON.stringify({
       title: values.title,
       description: values.description,
@@ -257,11 +190,7 @@ export async function createTicket(values: TicketFormValues): Promise<Ticket> {
       assignee: values.assignee,
     }),
   });
-  if (!response.ok) {
-    throw await responseError(response, 'Could not create ticket');
-  }
-
-  return mapApiTicket((await response.json()) as ApiTicket);
+  return mapApiTicket(ticket);
 }
 
 export async function createOrganizationTicket(
@@ -270,13 +199,10 @@ export async function createOrganizationTicket(
   boardId?: string,
 ): Promise<Ticket> {
   if (!values.assigneeUserId) throw new Error('Select an organization member');
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!apiBaseUrl) throw new Error('Frontend API configuration is missing');
-  const response = await fetch(
-    new URL(`/api/tickets/organizations/${organizationId}`, apiBaseUrl),
+  const ticket = await apiRequest<ApiTicket>(
+    `/api/tickets/organizations/${organizationId}`,
     {
       method: 'POST',
-      headers: await authenticatedHeaders(true),
       body: JSON.stringify({
         board_id: boardId ?? null,
         title: values.title,
@@ -287,39 +213,19 @@ export async function createOrganizationTicket(
       }),
     },
   );
-  if (!response.ok) {
-    throw await responseError(response, 'Could not create organization ticket');
-  }
-  return mapApiTicket((await response.json()) as ApiTicket);
+  return mapApiTicket(ticket);
 }
 
 export async function deleteTicket(ticketId: string): Promise<void> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-
-  if (!apiBaseUrl) {
-    throw new Error('Frontend API configuration is missing');
-  }
-
-  const url = new URL(`/api/tickets/${ticketId}`, apiBaseUrl);
-
-  const response = await fetch(url, {
-    method: 'DELETE',
-    headers: await authenticatedHeaders(),
-  });
-  if (!response.ok) {
-    throw await responseError(response, 'Could not delete ticket');
-  }
+  await apiRequest<void>(`/api/tickets/${ticketId}`, { method: 'DELETE' });
 }
 
 export async function deleteOrganizationTicket(
   organizationId: string,
   ticketId: string,
 ): Promise<void> {
-  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL;
-  if (!apiBaseUrl) throw new Error('Frontend API configuration is missing');
-  const response = await fetch(
-    new URL(`/api/tickets/organizations/${organizationId}/${ticketId}`, apiBaseUrl),
-    { method: 'DELETE', headers: await authenticatedHeaders() },
+  await apiRequest<void>(
+    `/api/tickets/organizations/${organizationId}/${ticketId}`,
+    { method: 'DELETE' },
   );
-  if (!response.ok) throw await responseError(response, 'Could not delete organization ticket');
 }

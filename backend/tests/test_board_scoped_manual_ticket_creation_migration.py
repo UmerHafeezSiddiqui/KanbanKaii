@@ -3,7 +3,7 @@ from unittest import TestCase
 
 
 MIGRATION = (
-    Path(__file__).parents[1]
+    Path(__file__).parents[2]
     / "supabase"
     / "migrations"
     / "202607070024_board_scoped_manual_ticket_creation.sql"

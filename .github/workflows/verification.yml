@@ -1,0 +1,48 @@
+name: Verification
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  application:
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports: ['16380:6379']
+    env:
+      TEST_REDIS_URL: redis://127.0.0.1:16380/0
+      REDIS_URL: redis://127.0.0.1:16380/0
+      SUPABASE_URL: http://127.0.0.1:9
+      SUPABASE_SERVICE_ROLE_KEY: sb_secret_ci_placeholder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r backend/requirements.txt
+      - run: python -m unittest discover -s tests -v
+        working-directory: backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test && npm run typecheck && npm run lint && npm run build
+        working-directory: frontend
+      - name: Launcher regression
+        shell: pwsh
+        run: ./scripts/tests/worker-readiness.ps1
+  database:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Isolated migration, rollback, replay and RLS gate
+        shell: pwsh
+        run: ./scripts/test-database.ps1

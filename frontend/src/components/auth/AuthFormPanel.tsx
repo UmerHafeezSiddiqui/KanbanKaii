@@ -1,14 +1,33 @@
 import Eye from 'lucide-react/dist/esm/icons/eye';
 import EyeOff from 'lucide-react/dist/esm/icons/eye-off';
-import { useState } from 'react';
+import { memo, useState, type FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import type { useAuthPageForm } from '@/hooks/auth/useAuthPageForm';
+import type { AuthMode } from '@/hooks/auth/useAuthPageForm';
 
-type AuthFormPanelProps = ReturnType<typeof useAuthPageForm>;
+export interface AuthFormPanelProps {
+  confirmPassword?: string;
+  continueWithGoogle: () => void | Promise<void>;
+  displayName?: string;
+  email: string;
+  error?: string | null;
+  isForgot?: boolean;
+  isGoogleSubmitting?: boolean;
+  isSignup?: boolean;
+  isSubmitting?: boolean;
+  mode: AuthMode;
+  notice?: string | null;
+  password?: string;
+  setConfirmPassword?: (val: string) => void;
+  setDisplayName?: (val: string) => void;
+  setEmail: (val: string) => void;
+  setPassword: (val: string) => void;
+  submit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
+  switchMode: (mode: AuthMode) => void;
+}
 
-function GoogleIcon() {
+const GoogleIcon = memo(function GoogleIcon() {
   return (
     <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24">
       <path
@@ -29,21 +48,21 @@ function GoogleIcon() {
       />
     </svg>
   );
-}
+});
 
 export function AuthFormPanel({
-  confirmPassword,
+  confirmPassword = '',
   continueWithGoogle,
-  displayName,
+  displayName = '',
   email,
   error,
-  isGoogleSubmitting,
-  isForgot,
-  isSignup,
-  isSubmitting,
+  isGoogleSubmitting = false,
+  isForgot = false,
+  isSignup = false,
+  isSubmitting = false,
   mode,
   notice,
-  password,
+  password = '',
   setConfirmPassword,
   setDisplayName,
   setEmail,
@@ -125,7 +144,7 @@ export function AuthFormPanel({
                 id="display-name"
                 autoComplete="name"
                 value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
+                onChange={(event) => setDisplayName?.(event.target.value)}
                 placeholder="Aisha Khan"
                 className="h-11 rounded-xl border-violet-200 bg-white/95 px-4 shadow-sm shadow-violet-100/60 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-300"
                 required
@@ -139,7 +158,10 @@ export function AuthFormPanel({
             <Input
               id="email"
               type="email"
+              inputMode="email"
               autoComplete="email"
+              autoCapitalize="none"
+              spellCheck={false}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
@@ -167,6 +189,8 @@ export function AuthFormPanel({
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={isSignup ? 'new-password' : 'current-password'}
+                  autoCapitalize="none"
+                  spellCheck={false}
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="h-11 rounded-xl border-violet-200 bg-white/95 px-4 pr-11 shadow-sm shadow-violet-100/60 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-300"
@@ -193,8 +217,10 @@ export function AuthFormPanel({
                   id="confirm-password"
                   type={showConfirmPassword ? 'text' : 'password'}
                   autoComplete="new-password"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  onChange={(event) => setConfirmPassword?.(event.target.value)}
                   className="h-11 rounded-xl border-violet-200 bg-white/95 px-4 pr-11 shadow-sm shadow-violet-100/60 placeholder:text-slate-400 focus-visible:ring-2 focus-visible:ring-violet-300"
                   minLength={6}
                   required
@@ -217,7 +243,7 @@ export function AuthFormPanel({
             </p>
           )}
           {notice && (
-            <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            <p role="status" aria-live="polite" className="rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
               {notice}
             </p>
           )}

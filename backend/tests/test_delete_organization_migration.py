@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest import TestCase
 
 
-MIGRATION = Path(__file__).parents[1] / "supabase" / "migrations" / "202607060014_delete_organization.sql"
+MIGRATION = Path(__file__).parents[2] / "supabase" / "migrations" / "202607060014_delete_organization.sql"
 
 
 class DeleteOrganizationMigrationTests(TestCase):

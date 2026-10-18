@@ -12,6 +12,7 @@ from app.integrations.slack.schemas import SlackEvent
 from app.integrations.slack.services.channels import SlackChannelService
 from app.integrations.slack.services.users import SlackUserService
 from app.schemas.triage import AIAnalysisResult, IncomingMessage
+from app.schemas.ticket import TicketResponse
 from app.services.ai_provider import AIModelService
 from app.services.ticket_factory import create_ticket_from_analysis
 
@@ -107,6 +108,7 @@ class SlackEventProcessor:
             )
 
             results: list[dict[str, object]] = []
+            pending_tickets: list[TicketResponse] = []
             created_count = 0
             if not batch.isActionableTask:
                 results = [
@@ -197,19 +199,10 @@ class SlackEventProcessor:
                             source_channel_name=source_channel_name,
                             source_message_ts=event.ts,
                         )
-                        ticket = await run_in_threadpool(
-                            self.ticket_repository.create,
-                            ticket_data,
-                        )
+                        ticket = TicketResponse(**ticket_data.model_dump())
+                        pending_tickets.append(ticket)
                         ticket_ids.append(str(ticket.id))
                         created_count += 1
-                        logger.info(
-                            "Slack ticket created event_id=%s ticket_id=%s owner_id=%s board_id=%s; Supabase Realtime broadcast is now eligible",
-                            event_id,
-                            ticket.id,
-                            target.owner_id,
-                            board_binding.board_id if board_binding else None,
-                        )
                     results.append(
                         {
                             "slack_user_id": target.slack_user_id,
@@ -233,11 +226,9 @@ class SlackEventProcessor:
 
             outcome = "TICKET_CREATED" if created_count else "IGNORED_NON_ACTIONABLE"
             await run_in_threadpool(
-                self.slack_repository.update_webhook_delivery,
+                self.ticket_repository.commit_slack_delivery,
                 event_id,
-                "COMPLETED",
-                None,
-                outcome,
+                pending_tickets,
                 results,
             )
             logger.info(
